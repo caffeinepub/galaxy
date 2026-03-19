@@ -11,10 +11,10 @@ import OutCall "http-outcalls/outcall";
 
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
-import Migration "migration";
 
 
-(with migration = Migration.run)
+
+
 actor {
   // Prefabricated module for RBAC
   let accessControlState = AccessControl.initState();
