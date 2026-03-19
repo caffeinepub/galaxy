@@ -25,14 +25,29 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import * as THREE from "three";
+import {
+  AchievementsPanel,
+  loadAchievements,
+  saveAchievements,
+} from "./components/Achievements";
+import type { AchievementState } from "./components/Achievements";
+import { ConstellationOverlay } from "./components/ConstellationOverlay";
 import { DonationModal } from "./components/DonationModal";
+import { Leaderboard } from "./components/Leaderboard";
+import { MonetizationModal } from "./components/MonetizationModal";
+import { NameAStar } from "./components/NameAStar";
+import { PlanetJournal } from "./components/PlanetJournal";
 import { PLANET_DETAILS, PlanetPanel } from "./components/PlanetPanel";
 import type { PlanetDetails } from "./components/PlanetPanel";
+import { PlanetQuiz } from "./components/PlanetQuiz";
 import { PlanetSearch } from "./components/PlanetSearch";
+import { SpaceMissions } from "./components/SpaceMissions";
 import { SurfaceView } from "./components/SurfaceView";
+import { WormholeEffect } from "./components/WormholeEffect";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useRecordDonation } from "./hooks/useQueries";
+import { useIsPremiumUser } from "./hooks/useQueries";
 import { useSpaceAudio } from "./hooks/useSpaceAudio";
 
 // ─── Planet config ─────────────────────────────────────────────────────────
@@ -123,6 +138,47 @@ const PLANETS: PlanetConfig[] = [
   },
 ];
 
+// True-to-scale planet sizes (relative units)
+const TRUE_SCALE_SIZES: Record<string, number> = {
+  Mercury: 0.28,
+  Venus: 0.7,
+  Earth: 0.8,
+  Mars: 0.42,
+  Jupiter: 8.5,
+  Saturn: 7.2,
+  Uranus: 3.2,
+  Neptune: 3.1,
+};
+
+// ─── Asteroid Belt ──────────────────────────────────────────────────────────
+function AsteroidBelt() {
+  const { positions } = useMemo(() => {
+    const pos: number[] = [];
+    for (let i = 0; i < 800; i++) {
+      const r = 35 + Math.random() * 14; // between Mars(33) and Jupiter(52)
+      const theta = Math.random() * Math.PI * 2;
+      const y = (Math.random() - 0.5) * 1.2;
+      pos.push(Math.cos(theta) * r, y, Math.sin(theta) * r);
+    }
+    return { positions: new Float32Array(pos) };
+  }, []);
+
+  return (
+    <points>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+      </bufferGeometry>
+      <pointsMaterial
+        size={0.22}
+        color="#8a7a6a"
+        transparent
+        opacity={0.55}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
 type ViewMode = "solar" | "galaxy";
 
 interface SceneProps {
@@ -130,6 +186,8 @@ interface SceneProps {
   selectedPlanetName: string | null;
   onPlanetClick: (planet: PlanetConfig, worldPos: THREE.Vector3) => void;
   planetPositionsRef: React.MutableRefObject<Record<string, THREE.Vector3>>;
+  speedMultiplier: number;
+  scaleMode: boolean;
 }
 
 // ─── Orbit Line ─────────────────────────────────────────────────────────────
@@ -319,6 +377,8 @@ interface PlanetProps {
   isSelected: boolean;
   onPlanetClick: (planet: PlanetConfig, worldPos: THREE.Vector3) => void;
   planetPositionsRef: React.MutableRefObject<Record<string, THREE.Vector3>>;
+  speedMultiplier: number;
+  scaleMode: boolean;
 }
 
 function Planet({
@@ -326,6 +386,8 @@ function Planet({
   isSelected,
   onPlanetClick,
   planetPositionsRef,
+  speedMultiplier,
+  scaleMode,
 }: PlanetProps) {
   const groupRef = useRef<THREE.Group>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -339,7 +401,7 @@ function Planet({
   }, [planet.color]);
 
   useFrame((_, delta) => {
-    angleRef.current += planet.speed * delta * 0.5;
+    angleRef.current += planet.speed * delta * 0.5 * speedMultiplier;
     if (groupRef.current) {
       const x = Math.cos(angleRef.current) * planet.orbitalRadius;
       const z = Math.sin(angleRef.current) * planet.orbitalRadius;
@@ -378,7 +440,15 @@ function Planet({
           }}
           onClick={handleClick}
         >
-          <sphereGeometry args={[planet.size, 32, 32]} />
+          <sphereGeometry
+            args={[
+              scaleMode
+                ? (TRUE_SCALE_SIZES[planet.name] ?? planet.size)
+                : planet.size,
+              32,
+              32,
+            ]}
+          />
           <meshStandardMaterial
             color={planet.color}
             roughness={0.8}
@@ -541,6 +611,8 @@ interface SolarSystemGroupProps {
   selectedPlanetName: string | null;
   onPlanetClick: (planet: PlanetConfig, worldPos: THREE.Vector3) => void;
   planetPositionsRef: React.MutableRefObject<Record<string, THREE.Vector3>>;
+  speedMultiplier: number;
+  scaleMode: boolean;
 }
 
 function SolarSystemGroup({
@@ -548,6 +620,8 @@ function SolarSystemGroup({
   selectedPlanetName,
   onPlanetClick,
   planetPositionsRef,
+  speedMultiplier,
+  scaleMode,
 }: SolarSystemGroupProps) {
   const groupRef = useRef<THREE.Group>(null);
   const galacticAngle = useRef(Math.PI / 6);
@@ -577,8 +651,11 @@ function SolarSystemGroup({
           isSelected={selectedPlanetName === p.name}
           onPlanetClick={onPlanetClick}
           planetPositionsRef={planetPositionsRef}
+          speedMultiplier={speedMultiplier}
+          scaleMode={scaleMode}
         />
       ))}
+      <AsteroidBelt />
       {viewMode === "galaxy" && (
         <Html center position={[0, 18, 0]} style={{ pointerEvents: "none" }}>
           <div
@@ -610,6 +687,8 @@ function Scene({
   selectedPlanetName,
   onPlanetClick,
   planetPositionsRef,
+  speedMultiplier,
+  scaleMode,
 }: SceneProps) {
   const selectedPlanet =
     PLANETS.find((p) => p.name === selectedPlanetName) ?? null;
@@ -648,6 +727,8 @@ function Scene({
         selectedPlanetName={selectedPlanetName}
         onPlanetClick={onPlanetClick}
         planetPositionsRef={planetPositionsRef}
+        speedMultiplier={speedMultiplier}
+        scaleMode={scaleMode}
       />
 
       <CameraController
@@ -898,6 +979,33 @@ export default function App() {
   const { mutate: recordDonation } = useRecordDonation();
   const { identity } = useInternetIdentity();
   const { isMuted, toggleMute } = useSpaceAudio("space");
+  const [speedMultiplier, setSpeedMultiplier] = useState(1);
+  const [scaleMode, setScaleMode] = useState(false);
+  const [constellationMode, setConstellationMode] = useState(false);
+  const [wormholeActive, setWormholeActive] = useState(false);
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const [missionsOpen, setMissionsOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [nameStarOpen, setNameStarOpen] = useState(false);
+  const [monetizeOpen, setMonetizeOpen] = useState(false);
+  const [achievements, setAchievements] = useState<AchievementState>(() =>
+    loadAchievements(),
+  );
+
+  const principal = identity?.getPrincipal().toString() ?? null;
+  const isLoggedIn = !!(identity && !identity.getPrincipal().isAnonymous());
+  // Premium user status (available for future premium gating features)
+  useIsPremiumUser(isLoggedIn ? principal : null);
+
+  function updateAchievement(update: Partial<AchievementState>) {
+    setAchievements((prev) => {
+      const next = { ...prev, ...update };
+      saveAchievements(next);
+      return next;
+    });
+  }
 
   const selectedPlanetDetails: PlanetDetails | null = selectedPlanetName
     ? (PLANET_DETAILS[selectedPlanetName] ?? null)
@@ -930,6 +1038,14 @@ export default function App() {
 
   const handlePlanetClick = useCallback((planet: PlanetConfig) => {
     setSelectedPlanetName(planet.name);
+    setAchievements((prev) => {
+      const next = {
+        ...prev,
+        visitedPlanets: [...new Set([...prev.visitedPlanets, planet.name])],
+      };
+      saveAchievements(next);
+      return next;
+    });
   }, []);
 
   const handleClosePanel = useCallback(() => {
@@ -937,13 +1053,26 @@ export default function App() {
   }, []);
 
   const toggleGalaxy = useCallback(() => {
-    setViewMode((v) => (v === "galaxy" ? "solar" : "galaxy"));
-    setSelectedPlanetName(null);
+    setWormholeActive(true);
+    setTimeout(() => {
+      setViewMode((v) => (v === "galaxy" ? "solar" : "galaxy"));
+      setSelectedPlanetName(null);
+    }, 400);
+    setAchievements((prev) => {
+      const next = { ...prev, usedGalaxyView: true };
+      saveAchievements(next);
+      return next;
+    });
   }, []);
 
   const handleLandOnPlanet = useCallback(() => {
     if (selectedPlanetConfig) {
       setSurfaceViewPlanet(selectedPlanetConfig);
+      setAchievements((prev) => {
+        const next = { ...prev, landedOnSurface: true };
+        saveAchievements(next);
+        return next;
+      });
     }
   }, [selectedPlanetConfig]);
 
@@ -985,6 +1114,8 @@ export default function App() {
           selectedPlanetName={selectedPlanetName}
           onPlanetClick={handlePlanetClick}
           planetPositionsRef={planetPositionsRef}
+          speedMultiplier={speedMultiplier}
+          scaleMode={scaleMode}
         />
       </Canvas>
 
@@ -1081,6 +1212,44 @@ export default function App() {
           >
             <Rocket size={13} />
             Land on {selectedPlanetName}
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Journal button - when planet selected */}
+      <AnimatePresence>
+        {selectedPlanetName && (
+          <motion.button
+            key="journal-btn"
+            type="button"
+            data-ocid="journal.open_modal_button"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            onClick={() => setJournalOpen(true)}
+            style={{
+              position: "absolute",
+              bottom: 110,
+              left: "50%",
+              transform: "translateX(-50%)",
+              background: "rgba(11,16,23,0.8)",
+              border: "1px solid rgba(246,195,91,0.3)",
+              borderRadius: 10,
+              color: "#D8BE8B",
+              cursor: "pointer",
+              padding: "8px 18px",
+              fontSize: 11,
+              fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              backdropFilter: "blur(8px)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            📝 Planet Journal
           </motion.button>
         )}
       </AnimatePresence>
@@ -1205,6 +1374,245 @@ export default function App() {
           {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
           {isMuted ? "Unmuted Off" : "Audio On"}
         </button>
+
+        {/* Time Travel Slider */}
+        <div
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <span
+            style={{
+              color: "#9AA7B6",
+              fontSize: 10,
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              whiteSpace: "nowrap",
+            }}
+          >
+            ⏩ {speedMultiplier.toFixed(1)}x Speed
+          </span>
+          <input
+            data-ocid="controls.toggle"
+            type="range"
+            min={0.1}
+            max={50}
+            step={0.1}
+            value={speedMultiplier}
+            onChange={(e) => setSpeedMultiplier(Number(e.target.value))}
+            style={{ width: 100, accentColor: "#F6C35B", cursor: "pointer" }}
+          />
+        </div>
+
+        {/* Scale Mode */}
+        <button
+          type="button"
+          data-ocid="scale.toggle"
+          onClick={() => setScaleMode((v) => !v)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: scaleMode ? "#F6C35B" : "#9AA7B6",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            border: scaleMode
+              ? "1px solid rgba(246,195,91,0.5)"
+              : "1px solid rgba(255,255,255,0.12)",
+            background: scaleMode
+              ? "rgba(246,195,91,0.08)"
+              : "rgba(11,16,23,0.75)",
+            transition: "all 0.2s",
+          }}
+        >
+          🔭 {scaleMode ? "True Scale ON" : "True Scale"}
+        </button>
+
+        {/* Constellation Mode */}
+        <button
+          type="button"
+          data-ocid="constellation.toggle"
+          onClick={() => setConstellationMode((v) => !v)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: constellationMode ? "#F6C35B" : "#9AA7B6",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            border: constellationMode
+              ? "1px solid rgba(246,195,91,0.5)"
+              : "1px solid rgba(255,255,255,0.12)",
+            background: constellationMode
+              ? "rgba(246,195,91,0.08)"
+              : "rgba(11,16,23,0.75)",
+            transition: "all 0.2s",
+          }}
+        >
+          ✨ Constellations
+        </button>
+
+        {/* Planet Quiz */}
+        <button
+          type="button"
+          data-ocid="quiz.open_modal_button"
+          onClick={() => setQuizOpen(true)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#E9EEF5",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+        >
+          🧠 Planet Quiz
+        </button>
+
+        {/* Achievements */}
+        <button
+          type="button"
+          data-ocid="achievements.open_modal_button"
+          onClick={() => setAchievementsOpen(true)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#E9EEF5",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+        >
+          🏆 Achievements
+        </button>
+
+        {/* Space Missions */}
+        <button
+          type="button"
+          data-ocid="missions.open_modal_button"
+          onClick={() => setMissionsOpen(true)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#E9EEF5",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+        >
+          🚀 Space Missions
+        </button>
+
+        {/* Leaderboard */}
+        <button
+          type="button"
+          data-ocid="leaderboard.open_modal_button"
+          onClick={() => setLeaderboardOpen(true)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#E9EEF5",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+        >
+          🏅 Leaderboard
+        </button>
+
+        {/* Name a Star */}
+        <button
+          type="button"
+          data-ocid="namestar.open_modal_button"
+          onClick={() => setNameStarOpen(true)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#E9EEF5",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+        >
+          ⭐ Name a Star
+        </button>
+
+        {/* Support & Revenue */}
+        <button
+          type="button"
+          data-ocid="monetize.open_modal_button"
+          onClick={() => setMonetizeOpen(true)}
+          style={{
+            ...panelStyle,
+            position: "relative",
+            padding: "9px 16px",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            color: "#E9EEF5",
+            cursor: "pointer",
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            transition: "all 0.15s",
+          }}
+        >
+          💰 Support & Revenue
+        </button>
       </div>
 
       {/* Hint bar */}
@@ -1281,6 +1689,61 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Constellation Overlay */}
+      <ConstellationOverlay active={constellationMode} />
+
+      {/* Wormhole effect */}
+      <WormholeEffect
+        active={wormholeActive}
+        onDone={() => setWormholeActive(false)}
+      />
+
+      {/* Planet Quiz */}
+      <PlanetQuiz
+        open={quizOpen}
+        onOpenChange={setQuizOpen}
+        onQuizComplete={() => updateAchievement({ usedQuiz: true })}
+      />
+
+      {/* Achievements Panel */}
+      <AchievementsPanel
+        open={achievementsOpen}
+        onOpenChange={setAchievementsOpen}
+        achievements={achievements}
+      />
+
+      {/* Space Missions */}
+      <SpaceMissions
+        open={missionsOpen}
+        onOpenChange={setMissionsOpen}
+        onNavigateToPlanet={(name) => setSelectedPlanetName(name)}
+      />
+
+      {/* Leaderboard */}
+      <Leaderboard open={leaderboardOpen} onOpenChange={setLeaderboardOpen} />
+
+      {/* Planet Journal */}
+      {selectedPlanetName && (
+        <PlanetJournal
+          open={journalOpen}
+          onOpenChange={setJournalOpen}
+          planetName={selectedPlanetName}
+          onJournalWritten={() =>
+            updateAchievement({ wrotePlanetJournal: true })
+          }
+        />
+      )}
+
+      {/* Name a Star */}
+      <NameAStar
+        open={nameStarOpen}
+        onOpenChange={setNameStarOpen}
+        onStarNamed={() => updateAchievement({ namedAStar: true })}
+      />
+
+      {/* Monetization Modal */}
+      <MonetizationModal open={monetizeOpen} onOpenChange={setMonetizeOpen} />
 
       <Toaster
         theme="dark"

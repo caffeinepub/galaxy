@@ -89,6 +89,28 @@ export class ExternalBlob {
         return this;
     }
 }
+export interface TransformationOutput {
+    status: bigint;
+    body: Uint8Array;
+    headers: Array<http_header>;
+}
+export type Time = bigint;
+export interface PlanetJournal {
+    planetName: string;
+    entry: string;
+    author: Principal;
+    timestamp: Time;
+}
+export interface Star {
+    owner: Principal;
+    name: string;
+    message: string;
+    timestamp: Time;
+}
+export interface http_header {
+    value: string;
+    name: string;
+}
 export interface http_request_result {
     status: bigint;
     body: Uint8Array;
@@ -100,12 +122,6 @@ export interface Donation {
     amount: bigint;
     donor: Principal;
 }
-export interface TransformationOutput {
-    status: bigint;
-    body: Uint8Array;
-    headers: Array<http_header>;
-}
-export type Time = bigint;
 export interface ShoppingItem {
     productName: string;
     currency: string;
@@ -133,14 +149,14 @@ export interface StripeConfiguration {
     allowedCountries: Array<string>;
     secretKey: string;
 }
+export interface DonorAggregate {
+    principal: Principal;
+    totalAmount: bigint;
+}
 export interface UserProfile {
     favoritePlanet?: string;
     name: string;
     role: UserRole;
-}
-export interface http_header {
-    value: string;
-    name: string;
 }
 export enum UserRole {
     admin = "admin",
@@ -151,17 +167,24 @@ export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
+    getAllStars(): Promise<Array<Star>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getDonations(): Promise<Array<Donation>>;
+    getJournalEntriesForPlanet(planetName: string): Promise<Array<PlanetJournal>>;
+    getStarsByOwner(owner: Principal): Promise<Array<Star>>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
+    getTopDonors(): Promise<Array<DonorAggregate>>;
     getTotalDonations(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
+    isPremiumUser(user: Principal): Promise<boolean>;
     isStripeConfigured(): Promise<boolean>;
     recordDonation(amount: bigint, message: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
+    submitJournalEntry(planetName: string, entry: string): Promise<void>;
+    submitStar(name: string, message: string): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
 }
 import type { StripeSessionStatus as _StripeSessionStatus, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
@@ -209,6 +232,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getAllStars(): Promise<Array<Star>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllStars();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllStars();
+            return result;
+        }
+    }
     async getCallerUserProfile(): Promise<UserProfile | null> {
         if (this.processError) {
             try {
@@ -251,6 +288,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getJournalEntriesForPlanet(arg0: string): Promise<Array<PlanetJournal>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getJournalEntriesForPlanet(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getJournalEntriesForPlanet(arg0);
+            return result;
+        }
+    }
+    async getStarsByOwner(arg0: Principal): Promise<Array<Star>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getStarsByOwner(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getStarsByOwner(arg0);
+            return result;
+        }
+    }
     async getStripeSessionStatus(arg0: string): Promise<StripeSessionStatus> {
         if (this.processError) {
             try {
@@ -263,6 +328,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getStripeSessionStatus(arg0);
             return from_candid_StripeSessionStatus_n9(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getTopDonors(): Promise<Array<DonorAggregate>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getTopDonors();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getTopDonors();
+            return result;
         }
     }
     async getTotalDonations(): Promise<bigint> {
@@ -304,6 +383,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.isCallerAdmin();
+            return result;
+        }
+    }
+    async isPremiumUser(arg0: Principal): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.isPremiumUser(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.isPremiumUser(arg0);
             return result;
         }
     }
@@ -360,6 +453,34 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.setStripeConfiguration(arg0);
+            return result;
+        }
+    }
+    async submitJournalEntry(arg0: string, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.submitJournalEntry(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.submitJournalEntry(arg0, arg1);
+            return result;
+        }
+    }
+    async submitStar(arg0: string, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.submitStar(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.submitStar(arg0, arg1);
             return result;
         }
     }

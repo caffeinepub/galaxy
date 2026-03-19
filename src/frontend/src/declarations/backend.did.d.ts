@@ -16,12 +16,28 @@ export interface Donation {
   'amount' : bigint,
   'donor' : Principal,
 }
+export interface DonorAggregate {
+  'principal' : Principal,
+  'totalAmount' : bigint,
+}
+export interface PlanetJournal {
+  'planetName' : string,
+  'entry' : string,
+  'author' : Principal,
+  'timestamp' : Time,
+}
 export interface ShoppingItem {
   'productName' : string,
   'currency' : string,
   'quantity' : bigint,
   'priceInCents' : bigint,
   'productDescription' : string,
+}
+export interface Star {
+  'owner' : Principal,
+  'name' : string,
+  'message' : string,
+  'timestamp' : Time,
 }
 export interface StripeConfiguration {
   'allowedCountries' : Array<string>,
@@ -62,17 +78,24 @@ export interface _SERVICE {
     [Array<ShoppingItem>, string, string],
     string
   >,
+  'getAllStars' : ActorMethod<[], Array<Star>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getDonations' : ActorMethod<[], Array<Donation>>,
+  'getJournalEntriesForPlanet' : ActorMethod<[string], Array<PlanetJournal>>,
+  'getStarsByOwner' : ActorMethod<[Principal], Array<Star>>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
+  'getTopDonors' : ActorMethod<[], Array<DonorAggregate>>,
   'getTotalDonations' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'isPremiumUser' : ActorMethod<[Principal], boolean>,
   'isStripeConfigured' : ActorMethod<[], boolean>,
   'recordDonation' : ActorMethod<[bigint, string], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
+  'submitJournalEntry' : ActorMethod<[string, string], undefined>,
+  'submitStar' : ActorMethod<[string, string], undefined>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
 }
 export declare const idlService: IDL.ServiceClass;

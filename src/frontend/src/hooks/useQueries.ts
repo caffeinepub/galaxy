@@ -97,6 +97,90 @@ export function useRecordDonation() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["totalDonations"] });
+      qc.invalidateQueries({ queryKey: ["topDonors"] });
     },
+  });
+}
+
+export function useGetTopDonors() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["topDonors"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getTopDonors();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGetAllStars(enabled = true) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allStars"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllStars();
+    },
+    enabled: !!actor && !isFetching && enabled,
+  });
+}
+
+export function useSubmitStar() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      message,
+    }: { name: string; message: string }) => {
+      if (!actor) throw new Error("Not connected");
+      await actor.submitStar(name, message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["allStars"] });
+    },
+  });
+}
+
+export function useGetPlanetJournal(planetName: string, enabled = true) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["planetJournal", planetName],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getJournalEntriesForPlanet(planetName);
+    },
+    enabled: !!actor && !isFetching && enabled && !!planetName,
+  });
+}
+
+export function useSubmitJournalEntry() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      planetName,
+      entry,
+    }: { planetName: string; entry: string }) => {
+      if (!actor) throw new Error("Not connected");
+      await actor.submitJournalEntry(planetName, entry);
+    },
+    onSuccess: (_, { planetName }) => {
+      qc.invalidateQueries({ queryKey: ["planetJournal", planetName] });
+    },
+  });
+}
+
+export function useIsPremiumUser(principal: string | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["isPremium", principal],
+    queryFn: async () => {
+      if (!actor || !principal) return false;
+      const { Principal } = await import("@icp-sdk/core/principal");
+      return actor.isPremiumUser(Principal.fromText(principal));
+    },
+    enabled: !!actor && !isFetching && !!principal,
   });
 }
