@@ -783,7 +783,7 @@ function AuthButton() {
       >
         <Loader2
           size={14}
-          style={{ color: "#9AA7B6", animation: "spin 1s linear infinite" }}
+          style={{ color: "#F6C35B", animation: "spin 1s linear infinite" }}
         />
       </div>
     );
@@ -888,7 +888,7 @@ function AuthButton() {
                   background: "rgba(255,255,255,0.07)",
                   border: "1px solid rgba(255,255,255,0.12)",
                   borderRadius: 6,
-                  color: copied ? "#4ade80" : "#9AA7B6",
+                  color: copied ? "#4ade80" : "#F6C35B",
                   cursor: "pointer",
                   padding: "5px 6px",
                   flexShrink: 0,
@@ -910,7 +910,7 @@ function AuthButton() {
               background: "rgba(255,255,255,0.05)",
               border: "1px solid rgba(255,255,255,0.12)",
               borderRadius: 9,
-              color: "#9AA7B6",
+              color: "#F6C35B",
               cursor: "pointer",
               padding: "9px 14px",
               display: "flex",
@@ -990,6 +990,20 @@ export default function App() {
   const [journalOpen, setJournalOpen] = useState(false);
   const [nameStarOpen, setNameStarOpen] = useState(false);
   const [monetizeOpen, setMonetizeOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const anyModalOpen =
+    donationOpen ||
+    searchOpen ||
+    quizOpen ||
+    achievementsOpen ||
+    missionsOpen ||
+    leaderboardOpen ||
+    journalOpen ||
+    nameStarOpen ||
+    monetizeOpen;
+  const [topBarVisible, setTopBarVisible] = useState(true);
+  const topBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const menuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [achievements, setAchievements] = useState<AchievementState>(() =>
     loadAchievements(),
   );
@@ -1086,6 +1100,17 @@ export default function App() {
     fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
   };
 
+  const resetTopBarTimer = () => {
+    setTopBarVisible(true);
+    if (topBarTimerRef.current) clearTimeout(topBarTimerRef.current);
+    topBarTimerRef.current = setTimeout(() => setTopBarVisible(false), 4000);
+  };
+
+  const handleMenuPanelActivity = () => {
+    if (menuTimerRef.current) clearTimeout(menuTimerRef.current);
+    menuTimerRef.current = setTimeout(() => setMenuOpen(false), 5000);
+  };
+
   return (
     <div
       style={{
@@ -1095,10 +1120,12 @@ export default function App() {
         position: "relative",
         overflow: "hidden",
       }}
+      onMouseMove={resetTopBarTimer}
     >
       {/* 3D Canvas */}
       <Canvas
         camera={{ fov: 60, near: 0.1, far: 5000, position: [0, 30, 120] }}
+        frameloop={anyModalOpen ? "demand" : "always"}
         style={{
           background: "linear-gradient(180deg, #0B1017 0%, #0F1A25 100%)",
         }}
@@ -1118,9 +1145,31 @@ export default function App() {
           scaleMode={scaleMode}
         />
       </Canvas>
+      {/* Cinematic overlay when any modal is open */}
+      <AnimatePresence>
+        {anyModalOpen && (
+          <motion.div
+            key="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 105,
+              background: "rgba(5, 10, 18, 0.88)",
+              backdropFilter: "blur(6px)",
+              WebkitBackdropFilter: "blur(6px)",
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Top bar */}
-      <div
+      <motion.div
+        animate={{ opacity: topBarVisible ? 1 : 0 }}
+        transition={{ duration: 0.5 }}
         style={{
           position: "absolute",
           top: 0,
@@ -1130,7 +1179,8 @@ export default function App() {
           alignItems: "center",
           justifyContent: "space-between",
           padding: "20px 24px",
-          pointerEvents: "none",
+          pointerEvents: topBarVisible ? "none" : "none",
+          zIndex: 10,
         }}
       >
         {/* Title */}
@@ -1152,7 +1202,7 @@ export default function App() {
           </div>
           <div
             style={{
-              color: "#9AA7B6",
+              color: "#F6C35B",
               fontSize: 9,
               fontWeight: 500,
               letterSpacing: "0.12em",
@@ -1170,7 +1220,7 @@ export default function App() {
         <div style={{ pointerEvents: "auto" }}>
           <AuthButton />
         </div>
-      </div>
+      </motion.div>
 
       {/* Planet detail panel */}
       <PlanetPanel planet={selectedPlanetDetails} onClose={handleClosePanel} />
@@ -1254,366 +1304,539 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Bottom controls */}
-      <div
+      {/* ── Floating menu toggle button ─────────────────────────── */}
+      <motion.button
+        type="button"
+        data-ocid="menu.toggle"
+        onClick={() => setMenuOpen((v) => !v)}
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 1 }}
+        whileHover={{ opacity: 1, scale: 1.08 }}
+        whileTap={{ scale: 0.95 }}
         style={{
-          position: "absolute",
+          position: "fixed",
           bottom: 24,
           left: 24,
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          background: menuOpen
+            ? "rgba(246,195,91,0.18)"
+            : "rgba(20,30,50,0.95)",
+          border: menuOpen
+            ? "1px solid rgba(246,195,91,0.6)"
+            : "1px solid rgba(246,195,91,0.5)",
+          color: menuOpen ? "#F6C35B" : "#F6C35B",
+          cursor: "pointer",
           display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          alignItems: "flex-start",
+          alignItems: "center",
+          justifyContent: "center",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          boxShadow: menuOpen
+            ? "0 0 18px rgba(246,195,91,0.3)"
+            : "0 0 16px rgba(246,195,91,0.4), 0 2px 8px rgba(0,0,0,0.6)",
+          zIndex: 9999,
+          transition: "background 0.2s, border 0.2s, box-shadow 0.2s",
         }}
       >
-        {/* Galaxy toggle */}
-        <button
-          type="button"
-          data-ocid="galaxy.toggle"
-          onClick={toggleGalaxy}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: viewMode === "galaxy" ? "#F6C35B" : "#9AA7B6",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            border:
-              viewMode === "galaxy"
-                ? "1px solid rgba(246,195,91,0.5)"
-                : "1px solid rgba(255,255,255,0.12)",
-            background:
-              viewMode === "galaxy"
-                ? "rgba(246,195,91,0.08)"
-                : "rgba(11,16,23,0.75)",
-            transition: "all 0.2s",
-          }}
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 18 18"
+          fill="none"
+          role="img"
+          aria-label="Menu"
         >
-          <Globe2 size={14} />
-          {viewMode === "galaxy" ? "Solar System View" : "Galaxy View"}
-        </button>
+          <rect y="3" width="18" height="2" rx="1" fill="currentColor" />
+          <rect y="8" width="18" height="2" rx="1" fill="currentColor" />
+          <rect y="13" width="18" height="2" rx="1" fill="currentColor" />
+        </svg>
+      </motion.button>
 
-        {/* Donate button */}
-        <button
-          type="button"
-          data-ocid="donation.open_modal_button"
-          onClick={() => setDonationOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          <Heart size={14} color="#F6C35B" />
-          Support Exploration
-        </button>
-
-        {/* Search button */}
-        <button
-          type="button"
-          data-ocid="planet_search.open_modal_button"
-          onClick={() => setSearchOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          <Search size={14} color="#7de8e8" />
-          Search Planets
-        </button>
-
-        {/* Mute toggle */}
-        <button
-          type="button"
-          data-ocid="audio.toggle"
-          onClick={toggleMute}
-          title={isMuted ? "Unmute" : "Mute"}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: isMuted ? "#9AA7B6" : "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-          {isMuted ? "Unmuted Off" : "Audio On"}
-        </button>
-
-        {/* Time Travel Slider */}
-        <div
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <span
+      {/* ── Slide-out controls panel ─────────────────────────────── */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            key="controls-panel"
+            initial={{ x: -270, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -270, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            onMouseMove={handleMenuPanelActivity}
             style={{
-              color: "#9AA7B6",
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap",
+              position: "fixed",
+              bottom: 78,
+              left: 12,
+              width: 240,
+              maxHeight: "calc(100vh - 120px)",
+              overflowY: "auto",
+              background: "rgba(11,16,23,0.88)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 16,
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
+              padding: "12px 10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 5,
+              zIndex: 9998,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              scrollbarWidth: "thin",
+              scrollbarColor: "rgba(246,195,91,0.2) transparent",
+              fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
             }}
           >
-            ⏩ {speedMultiplier.toFixed(1)}x Speed
-          </span>
-          <input
-            data-ocid="controls.toggle"
-            type="range"
-            min={0.1}
-            max={50}
-            step={0.1}
-            value={speedMultiplier}
-            onChange={(e) => setSpeedMultiplier(Number(e.target.value))}
-            style={{ width: 100, accentColor: "#F6C35B", cursor: "pointer" }}
-          />
-        </div>
+            {/* Section label */}
+            <div
+              style={{
+                color: "#F6C35B",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                padding: "2px 8px 6px",
+                borderBottom: "1px solid rgba(255,255,255,0.07)",
+                marginBottom: 2,
+              }}
+            >
+              Controls
+            </div>
 
-        {/* Scale Mode */}
-        <button
-          type="button"
-          data-ocid="scale.toggle"
-          onClick={() => setScaleMode((v) => !v)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: scaleMode ? "#F6C35B" : "#9AA7B6",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            border: scaleMode
-              ? "1px solid rgba(246,195,91,0.5)"
-              : "1px solid rgba(255,255,255,0.12)",
-            background: scaleMode
-              ? "rgba(246,195,91,0.08)"
-              : "rgba(11,16,23,0.75)",
-            transition: "all 0.2s",
-          }}
-        >
-          🔭 {scaleMode ? "True Scale ON" : "True Scale"}
-        </button>
+            {/* Galaxy toggle */}
+            <button
+              type="button"
+              data-ocid="galaxy.toggle"
+              onClick={toggleGalaxy}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: viewMode === "galaxy" ? "#F6C35B" : "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border:
+                  viewMode === "galaxy"
+                    ? "1px solid rgba(246,195,91,0.4)"
+                    : "1px solid transparent",
+                background:
+                  viewMode === "galaxy"
+                    ? "rgba(246,195,91,0.08)"
+                    : "transparent",
+                borderRadius: 10,
+                transition: "all 0.2s",
+                textAlign: "left",
+              }}
+            >
+              <Globe2 size={14} style={{ flexShrink: 0 }} />
+              {viewMode === "galaxy" ? "Solar System View" : "Galaxy View"}
+            </button>
 
-        {/* Constellation Mode */}
-        <button
-          type="button"
-          data-ocid="constellation.toggle"
-          onClick={() => setConstellationMode((v) => !v)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: constellationMode ? "#F6C35B" : "#9AA7B6",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            border: constellationMode
-              ? "1px solid rgba(246,195,91,0.5)"
-              : "1px solid rgba(255,255,255,0.12)",
-            background: constellationMode
-              ? "rgba(246,195,91,0.08)"
-              : "rgba(11,16,23,0.75)",
-            transition: "all 0.2s",
-          }}
-        >
-          ✨ Constellations
-        </button>
+            {/* Donate button */}
+            <button
+              type="button"
+              data-ocid="donation.open_modal_button"
+              onClick={() => {
+                setDonationOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              <Heart size={14} color="#F6C35B" style={{ flexShrink: 0 }} />
+              Support Exploration
+            </button>
 
-        {/* Planet Quiz */}
-        <button
-          type="button"
-          data-ocid="quiz.open_modal_button"
-          onClick={() => setQuizOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          🧠 Planet Quiz
-        </button>
+            {/* Search button */}
+            <button
+              type="button"
+              data-ocid="planet_search.open_modal_button"
+              onClick={() => {
+                setSearchOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              <Search size={14} color="#7de8e8" style={{ flexShrink: 0 }} />
+              Search Planets
+            </button>
 
-        {/* Achievements */}
-        <button
-          type="button"
-          data-ocid="achievements.open_modal_button"
-          onClick={() => setAchievementsOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          🏆 Achievements
-        </button>
+            {/* Mute toggle */}
+            <button
+              type="button"
+              data-ocid="audio.toggle"
+              onClick={toggleMute}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: isMuted ? "#9AA7B6" : "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              {isMuted ? (
+                <VolumeX size={14} style={{ flexShrink: 0 }} />
+              ) : (
+                <Volume2 size={14} style={{ flexShrink: 0 }} />
+              )}
+              {isMuted ? "Audio Off" : "Audio On"}
+            </button>
 
-        {/* Space Missions */}
-        <button
-          type="button"
-          data-ocid="missions.open_modal_button"
-          onClick={() => setMissionsOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          🚀 Space Missions
-        </button>
+            {/* Divider */}
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.07)",
+                margin: "4px 0",
+              }}
+            />
 
-        {/* Leaderboard */}
-        <button
-          type="button"
-          data-ocid="leaderboard.open_modal_button"
-          onClick={() => setLeaderboardOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          🏅 Leaderboard
-        </button>
+            {/* Time Travel Slider */}
+            <div
+              style={{
+                padding: "8px 14px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <span
+                style={{
+                  color: "#F6C35B",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                }}
+              >
+                ⏩ Speed: {speedMultiplier.toFixed(1)}x
+              </span>
+              <input
+                data-ocid="controls.toggle"
+                type="range"
+                min={0.1}
+                max={50}
+                step={0.1}
+                value={speedMultiplier}
+                onChange={(e) => setSpeedMultiplier(Number(e.target.value))}
+                style={{
+                  width: "100%",
+                  accentColor: "#F6C35B",
+                  cursor: "pointer",
+                }}
+              />
+            </div>
 
-        {/* Name a Star */}
-        <button
-          type="button"
-          data-ocid="namestar.open_modal_button"
-          onClick={() => setNameStarOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          ⭐ Name a Star
-        </button>
+            {/* Scale Mode */}
+            <button
+              type="button"
+              data-ocid="scale.toggle"
+              onClick={() => setScaleMode((v) => !v)}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: scaleMode ? "#F6C35B" : "#F6C35B",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: scaleMode
+                  ? "1px solid rgba(246,195,91,0.4)"
+                  : "1px solid transparent",
+                background: scaleMode ? "rgba(246,195,91,0.08)" : "transparent",
+                borderRadius: 10,
+                transition: "all 0.2s",
+                textAlign: "left",
+              }}
+            >
+              🔭 {scaleMode ? "True Scale ON" : "True Scale"}
+            </button>
 
-        {/* Support & Revenue */}
-        <button
-          type="button"
-          data-ocid="monetize.open_modal_button"
-          onClick={() => setMonetizeOpen(true)}
-          style={{
-            ...panelStyle,
-            position: "relative",
-            padding: "9px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            color: "#E9EEF5",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            transition: "all 0.15s",
-          }}
-        >
-          💰 Support & Revenue
-        </button>
-      </div>
+            {/* Constellation Mode */}
+            <button
+              type="button"
+              data-ocid="constellation.toggle"
+              onClick={() => setConstellationMode((v) => !v)}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: constellationMode ? "#F6C35B" : "#F6C35B",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: constellationMode
+                  ? "1px solid rgba(246,195,91,0.4)"
+                  : "1px solid transparent",
+                background: constellationMode
+                  ? "rgba(246,195,91,0.08)"
+                  : "transparent",
+                borderRadius: 10,
+                transition: "all 0.2s",
+                textAlign: "left",
+              }}
+            >
+              ✨ Constellations
+            </button>
+
+            {/* Divider */}
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.07)",
+                margin: "4px 0",
+              }}
+            />
+            <div
+              style={{
+                color: "#F6C35B",
+                fontSize: 9,
+                fontWeight: 700,
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                padding: "2px 8px 4px",
+              }}
+            >
+              Activities
+            </div>
+
+            {/* Planet Quiz */}
+            <button
+              type="button"
+              data-ocid="quiz.open_modal_button"
+              onClick={() => {
+                setQuizOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              🧠 Planet Quiz
+            </button>
+
+            {/* Achievements */}
+            <button
+              type="button"
+              data-ocid="achievements.open_modal_button"
+              onClick={() => {
+                setAchievementsOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              🏆 Achievements
+            </button>
+
+            {/* Space Missions */}
+            <button
+              type="button"
+              data-ocid="missions.open_modal_button"
+              onClick={() => {
+                setMissionsOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              🚀 Space Missions
+            </button>
+
+            {/* Leaderboard */}
+            <button
+              type="button"
+              data-ocid="leaderboard.open_modal_button"
+              onClick={() => {
+                setLeaderboardOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              🏅 Leaderboard
+            </button>
+
+            {/* Name a Star */}
+            <button
+              type="button"
+              data-ocid="namestar.open_modal_button"
+              onClick={() => {
+                setNameStarOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              ⭐ Name a Star
+            </button>
+
+            {/* Support & Revenue */}
+            <button
+              type="button"
+              data-ocid="monetize.open_modal_button"
+              onClick={() => {
+                setMonetizeOpen(true);
+                setMenuOpen(false);
+              }}
+              style={{
+                width: "100%",
+                padding: "9px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                color: "#C8D4E0",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+                border: "1px solid transparent",
+                background: "transparent",
+                borderRadius: 10,
+                transition: "all 0.15s",
+                textAlign: "left",
+              }}
+            >
+              💰 Support & Revenue
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Hint bar */}
       <div
@@ -1627,7 +1850,7 @@ export default function App() {
           borderRadius: 9999,
           padding: "7px 18px",
           backdropFilter: "blur(10px)",
-          color: "#9AA7B6",
+          color: "#F6C35B",
           fontSize: 10,
           fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
           fontWeight: 500,
@@ -1650,7 +1873,7 @@ export default function App() {
           position: "absolute",
           bottom: 24,
           right: selectedPlanetName ? 400 : 24,
-          color: "#9AA7B6",
+          color: "#F6C35B",
           fontSize: 10,
           fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
           letterSpacing: "0.05em",

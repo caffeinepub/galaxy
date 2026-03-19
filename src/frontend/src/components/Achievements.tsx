@@ -141,7 +141,7 @@ export function AchievementsPanel({ open, onOpenChange, achievements }: Props) {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "rgba(0,0,0,0.65)",
+            background: "rgba(0,0,0,0.1)",
           }}
           onClick={() => onOpenChange(false)}
         >

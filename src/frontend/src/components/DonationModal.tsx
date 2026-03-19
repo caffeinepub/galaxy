@@ -153,7 +153,7 @@ function CryptoCard({ crypto }: { crypto: (typeof CRYPTO_OPTIONS)[0] }) {
         <div
           style={{
             marginTop: 8,
-            background: "rgba(0,0,0,0.3)",
+            background: "rgba(0,0,0,0.05)",
             border: "1px solid rgba(255,255,255,0.07)",
             borderRadius: 7,
             padding: "7px 10px",

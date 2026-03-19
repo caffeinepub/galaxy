@@ -15,7 +15,7 @@ export function useSpaceAudio(mode: AudioMode, planetName?: string) {
       osc.type = "sine";
       osc.frequency.value = 40;
       const oscGain = ctx.createGain();
-      oscGain.gain.value = 0.04;
+      oscGain.gain.value = 0.3;
       osc.connect(oscGain);
       oscGain.connect(masterGain);
       osc.start();
@@ -31,7 +31,7 @@ export function useSpaceAudio(mode: AudioMode, planetName?: string) {
       filter.type = "lowpass";
       filter.frequency.value = 200;
       const noiseGain = ctx.createGain();
-      noiseGain.gain.value = 0.02;
+      noiseGain.gain.value = 0.15;
       noise.connect(filter);
       filter.connect(noiseGain);
       noiseGain.connect(masterGain);
@@ -39,7 +39,7 @@ export function useSpaceAudio(mode: AudioMode, planetName?: string) {
 
       nodesRef.current = [osc, noise];
       masterGain.gain.setValueAtTime(0, ctx.currentTime);
-      masterGain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 2);
+      masterGain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + 2);
     },
     [],
   );
@@ -62,29 +62,29 @@ export function useSpaceAudio(mode: AudioMode, planetName?: string) {
       lfo.type = "sine";
       const lfoGain = ctx.createGain();
 
-      let targetGain = 0.07;
+      let targetGain = 0.35;
 
       if (planet === "Earth") {
         filter.frequency.value = 600;
         lfo.frequency.value = 0.3;
         lfoGain.gain.value = 200;
-        targetGain = 0.08;
+        targetGain = 0.4;
       } else if (planet === "Mars") {
         filter.frequency.value = 800;
         lfo.frequency.value = 0.8;
         lfoGain.gain.value = 300;
-        targetGain = 0.07;
+        targetGain = 0.35;
       } else if (planet === "Venus") {
         filter.frequency.value = 300;
         lfo.frequency.value = 0.2;
         lfoGain.gain.value = 100;
-        targetGain = 0.08;
+        targetGain = 0.4;
 
         const osc = ctx.createOscillator();
         osc.type = "sine";
         osc.frequency.value = 60;
         const oscGain = ctx.createGain();
-        oscGain.gain.value = 0.03;
+        oscGain.gain.value = 0.15;
         osc.connect(oscGain);
         oscGain.connect(masterGain);
         osc.start();
@@ -93,13 +93,13 @@ export function useSpaceAudio(mode: AudioMode, planetName?: string) {
         filter.frequency.value = 500;
         lfo.frequency.value = 2.5;
         lfoGain.gain.value = 400;
-        targetGain = 0.09;
+        targetGain = 0.45;
       } else {
         // Mercury
         filter.frequency.value = 200;
         lfo.frequency.value = 0.1;
         lfoGain.gain.value = 50;
-        targetGain = 0.03;
+        targetGain = 0.15;
       }
 
       lfo.connect(lfoGain);
@@ -139,8 +139,8 @@ export function useSpaceAudio(mode: AudioMode, planetName?: string) {
       if (!startedRef.current) start();
       ctxRef.current?.resume();
     };
-    document.addEventListener("click", resume, { once: true });
-    document.addEventListener("keydown", resume, { once: true });
+    document.addEventListener("click", resume);
+    document.addEventListener("keydown", resume);
 
     return () => {
       document.removeEventListener("click", resume);

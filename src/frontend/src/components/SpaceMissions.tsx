@@ -939,7 +939,7 @@ function MissionCinematic({
                 borderRadius: 6,
                 overflow: "hidden",
                 position: "relative",
-                background: "rgba(0,0,0,0.3)",
+                background: "rgba(0,0,0,0.05)",
               }}
             >
               <motion.div
@@ -1076,7 +1076,7 @@ export function SpaceMissions({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "rgba(0,0,0,0.65)",
+            background: "rgba(0,0,0,0.1)",
           }}
           onClick={handleClose}
         >
