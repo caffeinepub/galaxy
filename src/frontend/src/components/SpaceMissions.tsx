@@ -1,5 +1,98 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { audioManager } from "../utils/AudioManager";
+
+// ─── Speech synthesis hook ────────────────────────────────────────────────────
+function useSpeech() {
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+
+  // Select voice once voices are available (Chrome loads them async)
+  useEffect(() => {
+    function pickVoice() {
+      const voices = window.speechSynthesis.getVoices();
+      preferredVoiceRef.current =
+        voices.find((v) =>
+          [
+            "Google UK English Male",
+            "Microsoft David",
+            "Daniel",
+            "Google US English",
+          ].includes(v.name),
+        ) ??
+        voices.find(
+          (v) =>
+            v.lang.startsWith("en") && v.name.toLowerCase().includes("male"),
+        ) ??
+        voices.find((v) => v.lang.startsWith("en")) ??
+        voices[0] ??
+        null;
+    }
+    pickVoice();
+    window.speechSynthesis.onvoiceschanged = pickVoice;
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
+  }, []);
+
+  const speak = useCallback(
+    (text: string, isLaunch = false) => {
+      if (!voiceEnabled || !window.speechSynthesis) return;
+      window.speechSynthesis.cancel();
+      const fullText = isLaunch
+        ? `T-minus 10, 9, 8, 7, 6, 5, 4, 3, 2, 1. Ignition. Liftoff! ${text}`
+        : text;
+      const u = new SpeechSynthesisUtterance(fullText);
+      u.pitch = 0.7;
+      u.rate = 0.75;
+      u.volume = 1.0;
+      if (preferredVoiceRef.current) u.voice = preferredVoiceRef.current;
+      utteranceRef.current = u;
+      window.speechSynthesis.speak(u);
+    },
+    [voiceEnabled],
+  );
+
+  function cancel() {
+    window.speechSynthesis.cancel();
+  }
+
+  return { voiceEnabled, setVoiceEnabled, speak, cancel };
+}
+
+// ─── Mission roles ─────────────────────────────────────────────────────────────
+type MissionRole = "pilot" | "scientist" | "engineer";
+
+const ROLES: {
+  id: MissionRole;
+  icon: string;
+  title: string;
+  desc: string;
+  telemetryFocus: string;
+}[] = [
+  {
+    id: "pilot",
+    icon: "🧑‍✈️",
+    title: "Pilot",
+    desc: "Navigate the spacecraft and monitor flight parameters. You control speed, altitude, and trajectory.",
+    telemetryFocus: "flight",
+  },
+  {
+    id: "scientist",
+    icon: "🔬",
+    title: "Scientist",
+    desc: "Analyze instrument readings and mission data. Your observations will advance human knowledge.",
+    telemetryFocus: "science",
+  },
+  {
+    id: "engineer",
+    icon: "⚙️",
+    title: "Engineer",
+    desc: "Monitor all systems and keep the spacecraft operational. You ensure mission success.",
+    telemetryFocus: "systems",
+  },
+];
 
 const PANEL_STYLE: React.CSSProperties = {
   background: "rgba(11,16,23,0.92)",
@@ -506,12 +599,14 @@ function PhaseTimeline({
 
 function MissionCinematic({
   mission,
+  role,
   onBack,
-}: { mission: Mission; onBack: () => void }) {
+}: { mission: Mission; role: MissionRole; onBack: () => void }) {
   const [phaseIndex, setPhaseIndex] = useState(-1);
   const [progress, setProgress] = useState(0);
   const [started, setStarted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const { voiceEnabled, setVoiceEnabled, speak, cancel } = useSpeech();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const currentPhase =
@@ -519,18 +614,39 @@ function MissionCinematic({
       ? mission.phases[phaseIndex]
       : null;
   const isComplete = phaseIndex >= mission.phases.length;
+  const [countdownNum, setCountdownNum] = useState<number | null>(null);
 
   function startMission() {
-    setStarted(true);
-    setPhaseIndex(0);
-    setProgress(0);
-    setElapsed(0);
+    audioManager.init();
+    // 10-second countdown beeps + visual display
+    for (let i = 0; i < 10; i++) {
+      setTimeout(() => {
+        audioManager.playMissionBeep();
+        setCountdownNum(10 - i);
+      }, i * 1000);
+    }
+    // Clear countdown at T-0
+    setTimeout(() => {
+      setCountdownNum(null);
+      audioManager.playMissionLaunch();
+    }, 10000);
+    // Start mission after countdown
+    setTimeout(() => {
+      setStarted(true);
+      setPhaseIndex(0);
+      setProgress(0);
+      setElapsed(0);
+    }, 10000);
   }
 
   useEffect(() => {
     if (!started || phaseIndex < 0 || isComplete) return;
     const phase = mission.phases[phaseIndex];
     setProgress(0);
+    if (phaseIndex > 0) audioManager.playMissionStatic();
+    if (phase.label === "LAUNCH")
+      setTimeout(() => audioManager.playMissionLaunch(), 200);
+    speak(phase.narrative, phase.label === "LAUNCH");
     const step = 50;
     const steps = phase.duration / step;
     let tick = 0;
@@ -547,7 +663,12 @@ function MissionCinematic({
       if (timerRef.current) clearTimeout(timerRef.current);
       if (progressRef.current) clearInterval(progressRef.current);
     };
-  }, [phaseIndex, started, mission.phases, isComplete]);
+  }, [phaseIndex, started, mission.phases, isComplete, speak]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cancel is stable
+  useEffect(() => {
+    return () => cancel();
+  }, []);
 
   const missionElapsedStr = (() => {
     const totalMs = elapsed;
@@ -633,23 +754,80 @@ function MissionCinematic({
               </div>
             </div>
           )}
-          <button
-            type="button"
-            onClick={onBack}
-            style={{
-              background: "rgba(255,255,255,0.07)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 8,
-              color: "#9AA7B6",
-              padding: "6px 14px",
-              cursor: "pointer",
-              fontSize: 11,
-              fontWeight: 600,
-              fontFamily: "inherit",
-            }}
-          >
-            ✕ Exit
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Role badge */}
+            {ROLES.find((r) => r.id === role) && (
+              <div
+                style={{
+                  background: "rgba(246,195,91,0.1)",
+                  border: "1px solid rgba(246,195,91,0.3)",
+                  borderRadius: 8,
+                  padding: "4px 10px",
+                  color: "#F6C35B",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                {ROLES.find((r) => r.id === role)!.icon}{" "}
+                {ROLES.find((r) => r.id === role)!.title.toUpperCase()}
+              </div>
+            )}
+            {/* Voice toggle */}
+            <button
+              type="button"
+              data-ocid="missions.toggle"
+              onClick={() => {
+                if (voiceEnabled) {
+                  cancel();
+                }
+                setVoiceEnabled((v) => !v);
+              }}
+              title={
+                voiceEnabled
+                  ? "Disable voice narration"
+                  : "Enable voice narration"
+              }
+              style={{
+                background: voiceEnabled
+                  ? "rgba(96,165,250,0.12)"
+                  : "rgba(255,255,255,0.05)",
+                border: voiceEnabled
+                  ? "1px solid rgba(96,165,250,0.4)"
+                  : "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 8,
+                color: voiceEnabled ? "#60A5FA" : "#5a6a7a",
+                padding: "6px 10px",
+                cursor: "pointer",
+                fontSize: 14,
+                fontFamily: "inherit",
+              }}
+            >
+              {voiceEnabled ? "🔊" : "🔇"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                cancel();
+                onBack();
+              }}
+              style={{
+                background: "rgba(255,255,255,0.07)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8,
+                color: "#9AA7B6",
+                padding: "6px 14px",
+                cursor: "pointer",
+                fontSize: 11,
+                fontWeight: 600,
+                fontFamily: "inherit",
+              }}
+            >
+              ✕ Exit
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1024,6 +1202,217 @@ function MissionCinematic({
           />
         </div>
       )}
+
+      {/* Visual countdown overlay */}
+      <AnimatePresence>
+        {countdownNum !== null && (
+          <motion.div
+            key={countdownNum}
+            initial={{ opacity: 0, scale: 2 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            transition={{ duration: 0.35 }}
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              zIndex: 50,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "clamp(5rem, 15vw, 10rem)",
+                fontWeight: 900,
+                color: "#F6C35B",
+                textShadow:
+                  "0 0 60px rgba(246,195,91,0.8), 0 0 120px rgba(246,195,91,0.4)",
+                fontFamily: "monospace",
+                lineHeight: 1,
+              }}
+            >
+              {countdownNum}
+            </div>
+            <div
+              style={{
+                color: "rgba(246,195,91,0.7)",
+                fontSize: "1.1rem",
+                letterSpacing: "0.3em",
+                textTransform: "uppercase",
+                marginTop: 12,
+              }}
+            >
+              T-minus {countdownNum}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Role Selection Screen ─────────────────────────────────────────────────────
+function RoleSelectScreen({
+  mission,
+  onSelect,
+  onBack,
+}: {
+  mission: Mission;
+  onSelect: (role: MissionRole) => void;
+  onBack: () => void;
+}) {
+  const [hovered, setHovered] = useState<MissionRole | null>(null);
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 200,
+        background: "#030611",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
+      }}
+    >
+      {/* Stars BG */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(ellipse at 60% 20%, rgba(96,165,250,0.06) 0%, transparent 60%), radial-gradient(ellipse at 20% 80%, rgba(167,139,250,0.05) 0%, transparent 60%)",
+          pointerEvents: "none",
+        }}
+      />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        style={{
+          position: "relative",
+          zIndex: 2,
+          width: "100%",
+          maxWidth: 560,
+          padding: "0 20px",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>{mission.icon}</div>
+          <div
+            style={{
+              color: "#F6C35B",
+              fontSize: 20,
+              fontWeight: 900,
+              letterSpacing: "0.06em",
+              marginBottom: 6,
+            }}
+          >
+            {mission.title}
+          </div>
+          <div style={{ color: "#9AA7B6", fontSize: 13 }}>
+            Choose your role for this mission
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {ROLES.map((role) => (
+            <motion.button
+              key={role.id}
+              type="button"
+              data-ocid={"missions.radio"}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onMouseEnter={() => setHovered(role.id)}
+              onMouseLeave={() => setHovered(null)}
+              onClick={() => onSelect(role.id)}
+              style={{
+                background:
+                  hovered === role.id
+                    ? "rgba(246,195,91,0.08)"
+                    : "rgba(255,255,255,0.03)",
+                border:
+                  hovered === role.id
+                    ? "1px solid rgba(246,195,91,0.4)"
+                    : "1px solid rgba(255,255,255,0.1)",
+                borderRadius: 14,
+                padding: "18px 22px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 16,
+                textAlign: "left",
+                transition: "all 0.2s",
+                fontFamily: "inherit",
+              }}
+            >
+              <div
+                style={{
+                  width: 52,
+                  height: 52,
+                  borderRadius: "50%",
+                  background: "rgba(246,195,91,0.1)",
+                  border: "1px solid rgba(246,195,91,0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 26,
+                  flexShrink: 0,
+                }}
+              >
+                {role.icon}
+              </div>
+              <div>
+                <div
+                  style={{
+                    color: "#F6C35B",
+                    fontSize: 15,
+                    fontWeight: 800,
+                    marginBottom: 4,
+                  }}
+                >
+                  {role.title}
+                </div>
+                <div
+                  style={{ color: "#9AA7B6", fontSize: 12, lineHeight: 1.5 }}
+                >
+                  {role.desc}
+                </div>
+              </div>
+              <div
+                style={{
+                  marginLeft: "auto",
+                  color: hovered === role.id ? "#F6C35B" : "#3a4a5a",
+                  fontSize: 18,
+                }}
+              >
+                →
+              </div>
+            </motion.button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            marginTop: 20,
+            background: "transparent",
+            border: "none",
+            color: "#5a6a7a",
+            cursor: "pointer",
+            fontSize: 12,
+            fontFamily: "inherit",
+            width: "100%",
+            padding: "8px",
+          }}
+        >
+          ← Back to missions
+        </button>
+      </motion.div>
     </div>
   );
 }
@@ -1040,25 +1429,51 @@ export function SpaceMissions({
   onNavigateToPlanet,
 }: Props) {
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
+  const [roleScreen, setRoleScreen] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<MissionRole>("pilot");
 
   function handleSelectMission(m: Mission) {
     setActiveMission(m);
+    setRoleScreen(true);
     if (onNavigateToPlanet && m.planets.length > 0) {
       onNavigateToPlanet(m.planets[0]);
     }
   }
 
+  function handleRoleSelect(role: MissionRole) {
+    setSelectedRole(role);
+    setRoleScreen(false);
+  }
+
   function handleBack() {
     setActiveMission(null);
+    setRoleScreen(false);
   }
 
   function handleClose() {
     setActiveMission(null);
+    setRoleScreen(false);
     onOpenChange(false);
   }
 
-  if (activeMission) {
-    return <MissionCinematic mission={activeMission} onBack={handleBack} />;
+  if (activeMission && roleScreen) {
+    return (
+      <RoleSelectScreen
+        mission={activeMission}
+        onSelect={handleRoleSelect}
+        onBack={handleBack}
+      />
+    );
+  }
+
+  if (activeMission && !roleScreen) {
+    return (
+      <MissionCinematic
+        mission={activeMission}
+        role={selectedRole}
+        onBack={handleBack}
+      />
+    );
   }
 
   return (

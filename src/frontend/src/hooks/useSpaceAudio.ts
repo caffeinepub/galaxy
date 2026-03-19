@@ -171,7 +171,7 @@ export function useSpaceAudio(mode: AudioMode, planetName?: string) {
           );
         } else {
           gainRef.current.gain.linearRampToValueAtTime(
-            0.07,
+            0.5,
             ctx.currentTime + 0.5,
           );
         }
