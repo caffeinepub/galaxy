@@ -46,6 +46,7 @@ import { DailyChallenge } from "./components/DailyChallenge";
 import { DailyTaskPanel } from "./components/DailyTaskPanel";
 import { DonationModal } from "./components/DonationModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import GameArcade from "./components/GameArcade";
 import { InterstellarBlackHoleHero } from "./components/InterstellarBlackHoleHero";
 import { Leaderboard } from "./components/Leaderboard";
 import { MonetizationModal } from "./components/MonetizationModal";
@@ -1062,6 +1063,7 @@ export default function App() {
   const [dailyTasksOpen, setDailyTasksOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
   const [nftTeaserOpen, setNftTeaserOpen] = useState(false);
+  const [arcadeOpen, setArcadeOpen] = useState(false);
   const [novaCredits, setNovaCredits] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const audioManagerRef = useRef<any>(null);
@@ -1088,7 +1090,8 @@ export default function App() {
     creditShopOpen ||
     dailyTasksOpen ||
     adminDashboardOpen ||
-    nftTeaserOpen;
+    nftTeaserOpen ||
+    arcadeOpen;
 
   const [topBarVisible, setTopBarVisible] = useState(true);
   const topBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1844,6 +1847,15 @@ export default function App() {
                 setMenuOpen(false);
               }}
             >
+              <MenuBtn
+                ocid="arcade.open_modal_button"
+                onClick={() => {
+                  setArcadeOpen(true);
+                  setMenuOpen(false);
+                }}
+              >
+                🎮 Game Arcade
+              </MenuBtn>
               ⭐ Name a Star
             </MenuBtn>
 
@@ -2237,6 +2249,16 @@ export default function App() {
       <NFTTeaser
         isOpen={nftTeaserOpen}
         onClose={() => setNftTeaserOpen(false)}
+      />
+      <GameArcade
+        open={arcadeOpen}
+        onClose={() => setArcadeOpen(false)}
+        novaCredits={novaCredits}
+        onSpendCredits={(amount) =>
+          setNovaCredits((prev) => Math.max(0, prev - amount))
+        }
+        onEarnCredits={(amount) => setNovaCredits((prev) => prev + amount)}
+        isLoggedIn={isLoggedIn}
       />
     </div>
   );
