@@ -10,6 +10,13 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface AdminStats {
+  'totalNovaCredits' : bigint,
+  'totalUsers' : bigint,
+  'totalLoginsToday' : bigint,
+  'totalDonations' : bigint,
+  'pendingPurchases' : bigint,
+}
 export interface Donation {
   'message' : string,
   'timestamp' : Time,
@@ -20,12 +27,25 @@ export interface DonorAggregate {
   'principal' : Principal,
   'totalAmount' : bigint,
 }
+export interface LoginRecord { 'user' : Principal, 'timestamp' : Time }
 export interface PlanetJournal {
   'planetName' : string,
   'entry' : string,
   'author' : Principal,
   'timestamp' : Time,
 }
+export interface PurchaseRequest {
+  'id' : bigint,
+  'status' : PurchaseRequestStatus,
+  'cryptoType' : string,
+  'transactionHash' : string,
+  'user' : Principal,
+  'timestamp' : Time,
+  'creditsRequested' : bigint,
+}
+export type PurchaseRequestStatus = { 'pending' : null } |
+  { 'approved' : null } |
+  { 'rejected' : null };
 export interface ShoppingItem {
   'productName' : string,
   'currency' : string,
@@ -73,28 +93,39 @@ export interface http_request_result {
 }
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'approvePurchaseRequest' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createCheckoutSession' : ActorMethod<
     [Array<ShoppingItem>, string, string],
     string
   >,
+  'earnCredits' : ActorMethod<[bigint], undefined>,
+  'getAdminStats' : ActorMethod<[], AdminStats>,
   'getAllStars' : ActorMethod<[], Array<Star>>,
+  'getBalance' : ActorMethod<[], bigint>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getDonations' : ActorMethod<[], Array<Donation>>,
   'getJournalEntriesForPlanet' : ActorMethod<[string], Array<PlanetJournal>>,
+  'getLoginActivity' : ActorMethod<[], Array<LoginRecord>>,
   'getStarsByOwner' : ActorMethod<[Principal], Array<Star>>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
+  'getTodayLoginCount' : ActorMethod<[], bigint>,
   'getTopDonors' : ActorMethod<[], Array<DonorAggregate>>,
   'getTotalDonations' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getUserPurchaseRequests' : ActorMethod<[], Array<PurchaseRequest>>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isPremiumUser' : ActorMethod<[Principal], boolean>,
   'isStripeConfigured' : ActorMethod<[], boolean>,
   'recordDonation' : ActorMethod<[bigint, string], undefined>,
+  'recordLogin' : ActorMethod<[], undefined>,
+  'rejectPurchaseRequest' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
+  'spendCredits' : ActorMethod<[bigint], boolean>,
   'submitJournalEntry' : ActorMethod<[string, string], undefined>,
+  'submitPurchaseRequest' : ActorMethod<[string, string, bigint], undefined>,
   'submitStar' : ActorMethod<[string, string], undefined>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,
 }

@@ -1,5 +1,4 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
@@ -13,7 +12,7 @@ import {
   Copy,
   Globe2,
   Heart,
-  Loader2,
+  LoaderCircle,
   LogIn,
   LogOut,
   Rocket,
@@ -24,28 +23,36 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import * as THREE from "three";
 import {
+  ACESFilmicToneMapping,
+  BackSide,
+  Color,
+  DoubleSide,
+  Vector3,
+} from "three";
+import {
+  type AchievementState,
   AchievementsPanel,
-  loadAchievements,
-  saveAchievements,
+  loadAchievements as loadAchievementsData,
+  saveAchievements as saveAchievementsData,
 } from "./components/Achievements";
-import type { AchievementState } from "./components/Achievements";
+import { AdminDashboard } from "./components/AdminDashboard";
 import { AudioSettings } from "./components/AudioSettings";
 import { BlackHole } from "./components/BlackHole";
 import { BlackHolePanel } from "./components/BlackHolePanel";
 import { ConstellationOverlay } from "./components/ConstellationOverlay";
-import {
-  DailyChallenge,
-  hasPendingChallenge,
-} from "./components/DailyChallenge";
+import { CreditShop } from "./components/CreditShop";
+import { DailyChallenge } from "./components/DailyChallenge";
+import { DailyTaskPanel } from "./components/DailyTaskPanel";
 import { DonationModal } from "./components/DonationModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { InterstellarBlackHoleHero } from "./components/InterstellarBlackHoleHero";
 import { Leaderboard } from "./components/Leaderboard";
 import { MonetizationModal } from "./components/MonetizationModal";
 import { MultiverseView } from "./components/MultiverseView";
+import { NFTTeaser } from "./components/NFTTeaser";
 import { NameAStar } from "./components/NameAStar";
+import { NovaCreditsDisplay } from "./components/NovaCreditsDisplay";
 import { PlanetJournal } from "./components/PlanetJournal";
 import { PLANET_DETAILS, PlanetPanel } from "./components/PlanetPanel";
 import type { PlanetDetails } from "./components/PlanetPanel";
@@ -55,12 +62,15 @@ import { SpaceMissions } from "./components/SpaceMissions";
 import { SpaceTimeline } from "./components/SpaceTimeline";
 import { SurfaceView } from "./components/SurfaceView";
 import { WormholeEffect } from "./components/WormholeEffect";
+import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useIsPremiumUser } from "./hooks/useQueries";
 import { useSpaceAudio } from "./hooks/useSpaceAudio";
 import { audioManager } from "./utils/AudioManager";
 
-// ─── Planet config ─────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
+type ViewMode = "solar" | "galaxy";
+
 interface PlanetConfig {
   name: string;
   color: string;
@@ -72,6 +82,7 @@ interface PlanetConfig {
   initialAngle?: number;
 }
 
+// ─── Planet Data ─────────────────────────────────────────────────────────────
 const PLANETS: PlanetConfig[] = [
   {
     name: "Mercury",
@@ -94,11 +105,11 @@ const PLANETS: PlanetConfig[] = [
   {
     name: "Earth",
     color: "#4fa3e0",
-    size: 1.0,
+    size: 1,
     orbitalRadius: 25,
-    speed: 1.0,
+    speed: 1,
     tilt: 23.4,
-    initialAngle: 2.0,
+    initialAngle: 2,
   },
   {
     name: "Mars",
@@ -148,7 +159,6 @@ const PLANETS: PlanetConfig[] = [
   },
 ];
 
-// True-to-scale planet sizes (relative units)
 const TRUE_SCALE_SIZES: Record<string, number> = {
   Mercury: 0.28,
   Venus: 0.7,
@@ -160,19 +170,49 @@ const TRUE_SCALE_SIZES: Record<string, number> = {
   Neptune: 3.1,
 };
 
-// ─── Asteroid Belt ──────────────────────────────────────────────────────────
+// ─── Achievement helpers ──────────────────────────────────────────────────────
+function loadAchievements(): AchievementState {
+  try {
+    const raw = localStorage.getItem("galaxy_achievements");
+    if (raw) return JSON.parse(raw);
+  } catch {
+    /* noop */
+  }
+  return {
+    visitedPlanets: [],
+    usedGalaxyView: false,
+    landedOnSurface: false,
+    usedQuiz: false,
+    namedAStar: false,
+    wrotePlanetJournal: false,
+  };
+}
+
+function saveAchievements(s: AchievementState) {
+  try {
+    localStorage.setItem("galaxy_achievements", JSON.stringify(s));
+  } catch {
+    /* noop */
+  }
+}
+
+function hasPendingChallenge(): boolean {
+  const lastDate = localStorage.getItem("galaxy_last_challenge_date");
+  return lastDate !== new Date().toDateString();
+}
+
+// ─── 3D Components ────────────────────────────────────────────────────────────
 function AsteroidBelt() {
   const { positions } = useMemo(() => {
     const pos: number[] = [];
     for (let i = 0; i < 800; i++) {
-      const r = 35 + Math.random() * 14; // between Mars(33) and Jupiter(52)
+      const r = 35 + Math.random() * 14;
       const theta = Math.random() * Math.PI * 2;
       const y = (Math.random() - 0.5) * 1.2;
       pos.push(Math.cos(theta) * r, y, Math.sin(theta) * r);
     }
     return { positions: new Float32Array(pos) };
   }, []);
-
   return (
     <points>
       <bufferGeometry>
@@ -189,20 +229,6 @@ function AsteroidBelt() {
   );
 }
 
-type ViewMode = "solar" | "galaxy";
-
-interface SceneProps {
-  viewMode: ViewMode;
-  selectedPlanetName: string | null;
-  onPlanetClick: (planet: PlanetConfig, worldPos: THREE.Vector3) => void;
-  planetPositionsRef: React.MutableRefObject<Record<string, THREE.Vector3>>;
-  speedMultiplier: number;
-  scaleMode: boolean;
-  onBlackHoleClick: () => void;
-  audioManagerRef: React.MutableRefObject<typeof audioManager | null>;
-}
-
-// ─── Orbit Line ─────────────────────────────────────────────────────────────
 function OrbitLine({ radius }: { radius: number }) {
   const points = useMemo(() => {
     const pts: [number, number, number][] = [];
@@ -223,14 +249,13 @@ function OrbitLine({ radius }: { radius: number }) {
   );
 }
 
-// ─── Saturn Rings ───────────────────────────────────────────────────────────
 function SaturnRings() {
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]}>
       <ringGeometry args={[3.8, 6.5, 64]} />
       <meshBasicMaterial
         color="#c2a46e"
-        side={THREE.DoubleSide}
+        side={DoubleSide}
         transparent
         opacity={0.7}
       />
@@ -238,7 +263,6 @@ function SaturnRings() {
   );
 }
 
-// ─── Galaxy Particles ───────────────────────────────────────────────────────
 function GalaxyParticles({ visible }: { visible: boolean }) {
   const { positions, colors } = useMemo(() => {
     const pos: number[] = [];
@@ -246,12 +270,11 @@ function GalaxyParticles({ visible }: { visible: boolean }) {
     const numArms = 4;
     const perArm = 4000;
     const armColors = [
-      new THREE.Color("#8ab4e8"),
-      new THREE.Color("#e8c48a"),
-      new THREE.Color("#a8d4f5"),
-      new THREE.Color("#f0d8a0"),
+      new Color("#8ab4e8"),
+      new Color("#e8c48a"),
+      new Color("#a8d4f5"),
+      new Color("#f0d8a0"),
     ];
-
     for (let arm = 0; arm < numArms; arm++) {
       const armOffset = (arm / numArms) * Math.PI * 2;
       const ac = armColors[arm];
@@ -270,7 +293,6 @@ function GalaxyParticles({ visible }: { visible: boolean }) {
         col.push(ac.r * bright, ac.g * bright, ac.b * bright);
       }
     }
-    // bulge at center
     for (let i = 0; i < 3000; i++) {
       const r = Math.random() * 60;
       const theta = Math.random() * Math.PI * 2;
@@ -281,9 +303,8 @@ function GalaxyParticles({ visible }: { visible: boolean }) {
         Math.sin(theta) * r * Math.cos(phi),
       );
       const b = 0.6 + Math.random() * 0.4;
-      col.push(b * 1.0, b * 0.9, b * 0.7);
+      col.push(b * 1, b * 0.9, b * 0.7);
     }
-    // outer halo
     for (let i = 0; i < 4000; i++) {
       const r = 100 + Math.random() * 700;
       const theta = Math.random() * Math.PI * 2;
@@ -298,7 +319,6 @@ function GalaxyParticles({ visible }: { visible: boolean }) {
     }
     return { positions: new Float32Array(pos), colors: new Float32Array(col) };
   }, []);
-
   return (
     <points visible={visible}>
       <bufferGeometry>
@@ -316,7 +336,6 @@ function GalaxyParticles({ visible }: { visible: boolean }) {
   );
 }
 
-// ─── Galactic Orbit Line ────────────────────────────────────────────────────
 function GalacticOrbitLine({ visible }: { visible: boolean }) {
   const points = useMemo(() => {
     const pts: [number, number, number][] = [];
@@ -338,248 +357,8 @@ function GalacticOrbitLine({ visible }: { visible: boolean }) {
   );
 }
 
-// ─── Camera Controller ──────────────────────────────────────────────────────
-interface CameraControllerProps {
-  viewMode: ViewMode;
-  selectedPlanet: PlanetConfig | null;
-  planetPositionsRef: React.MutableRefObject<Record<string, THREE.Vector3>>;
-}
-
-function CameraController({
-  viewMode,
-  selectedPlanet,
-  planetPositionsRef,
-}: CameraControllerProps) {
-  const targetPos = useRef(new THREE.Vector3(0, 30, 120));
-  const targetLook = useRef(new THREE.Vector3(0, 0, 0));
-
-  useFrame((state) => {
-    if (selectedPlanet) {
-      const pp = planetPositionsRef.current[selectedPlanet.name];
-      if (pp) {
-        const offset = selectedPlanet.size * 6 + 10;
-        targetPos.current.set(
-          pp.x + offset * 0.7,
-          pp.y + offset * 0.4,
-          pp.z + offset * 0.7,
-        );
-        targetLook.current.copy(pp);
-      }
-    } else if (viewMode === "galaxy") {
-      targetPos.current.set(0, 600, 1100);
-      targetLook.current.set(0, 0, 0);
-    } else {
-      targetPos.current.set(0, 30, 120);
-      targetLook.current.set(0, 0, 0);
-    }
-
-    state.camera.position.lerp(targetPos.current, 0.035);
-    if (state.controls) {
-      (state.controls as any).target.lerp(targetLook.current, 0.035);
-      (state.controls as any).update();
-    }
-  });
-
-  return null;
-}
-
-// ─── Planet ──────────────────────────────────────────────────────────────────
-interface PlanetProps {
-  planet: PlanetConfig;
-  isSelected: boolean;
-  onPlanetClick: (planet: PlanetConfig, worldPos: THREE.Vector3) => void;
-  planetPositionsRef: React.MutableRefObject<Record<string, THREE.Vector3>>;
-  speedMultiplier: number;
-  scaleMode: boolean;
-}
-
-function Planet({
-  planet,
-  isSelected,
-  onPlanetClick,
-  planetPositionsRef,
-  speedMultiplier,
-  scaleMode,
-}: PlanetProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  const meshRef = useRef<THREE.Mesh>(null);
-  const angleRef = useRef(planet.initialAngle ?? 0);
-  const [hovered, setHovered] = useState(false);
-
-  const emissiveColor = useMemo(() => {
-    const c = new THREE.Color(planet.color);
-    c.multiplyScalar(0.3);
-    return c;
-  }, [planet.color]);
-
-  useFrame((_, delta) => {
-    angleRef.current += planet.speed * delta * 0.5 * speedMultiplier;
-    if (groupRef.current) {
-      const x = Math.cos(angleRef.current) * planet.orbitalRadius;
-      const z = Math.sin(angleRef.current) * planet.orbitalRadius;
-      groupRef.current.position.set(x, 0, z);
-      if (!planetPositionsRef.current[planet.name]) {
-        planetPositionsRef.current[planet.name] = new THREE.Vector3();
-      }
-      planetPositionsRef.current[planet.name].set(x, 0, z);
-    }
-    if (meshRef.current) meshRef.current.rotation.y += delta * 0.3;
-  });
-
-  const tiltRad = (planet.tilt * Math.PI) / 180;
-
-  function handleClick(e: any) {
-    e.stopPropagation();
-    const worldPos =
-      planetPositionsRef.current[planet.name] ?? new THREE.Vector3();
-    onPlanetClick(planet, worldPos.clone());
-  }
-
-  return (
-    <group ref={groupRef}>
-      <group rotation={[0, 0, tiltRad]}>
-        {/* biome-ignore lint/a11y/useKeyWithClickEvents: R3F 3D mesh, not a DOM element */}
-        <mesh
-          ref={meshRef}
-          onPointerOver={(e) => {
-            e.stopPropagation();
-            setHovered(true);
-            document.body.style.cursor = "pointer";
-          }}
-          onPointerOut={() => {
-            setHovered(false);
-            document.body.style.cursor = "default";
-          }}
-          onClick={handleClick}
-        >
-          <sphereGeometry
-            args={[
-              scaleMode
-                ? (TRUE_SCALE_SIZES[planet.name] ?? planet.size)
-                : planet.size,
-              32,
-              32,
-            ]}
-          />
-          <meshStandardMaterial
-            color={planet.color}
-            roughness={0.8}
-            metalness={0.1}
-            emissive={
-              isSelected ? new THREE.Color(planet.color) : emissiveColor
-            }
-            emissiveIntensity={isSelected ? 0.4 : 0.05}
-          />
-        </mesh>
-
-        {isSelected && (
-          <mesh>
-            <sphereGeometry args={[planet.size * 1.15, 32, 32]} />
-            <meshBasicMaterial
-              color={planet.color}
-              transparent
-              opacity={0.12}
-              side={THREE.BackSide}
-              depthWrite={false}
-            />
-          </mesh>
-        )}
-
-        {planet.hasRings && <SaturnRings />}
-
-        {(hovered || isSelected) && (
-          <Html
-            center
-            position={[0, planet.size + 1.8, 0]}
-            style={{ pointerEvents: "none" }}
-          >
-            <div
-              style={{
-                background: "rgba(11,16,23,0.9)",
-                border: `1px solid ${isSelected ? "rgba(246,195,91,0.8)" : "rgba(246,195,91,0.5)"}`,
-                borderRadius: 8,
-                padding: "4px 11px",
-                color: "#F6C35B",
-                fontSize: 11,
-                fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
-                fontWeight: 700,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                whiteSpace: "nowrap",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-              }}
-            >
-              {planet.name}
-            </div>
-          </Html>
-        )}
-      </group>
-    </group>
-  );
-}
-
-// ─── Sun ─────────────────────────────────────────────────────────────────────
-function Sun() {
-  const halo1Ref = useRef<THREE.Mesh>(null);
-  const halo2Ref = useRef<THREE.Mesh>(null);
-  useFrame((state) => {
-    const t = state.clock.getElapsedTime();
-    if (halo1Ref.current)
-      halo1Ref.current.scale.setScalar(1 + Math.sin(t * 0.7) * 0.03);
-    if (halo2Ref.current)
-      halo2Ref.current.scale.setScalar(1 + Math.cos(t * 0.4) * 0.04);
-  });
-  return (
-    <group>
-      <mesh>
-        <sphereGeometry args={[6, 64, 64]} />
-        <meshStandardMaterial
-          color="#F6C35B"
-          emissive="#F6C35B"
-          emissiveIntensity={2.5}
-          roughness={0.4}
-          metalness={0}
-        />
-      </mesh>
-      <mesh ref={halo1Ref}>
-        <sphereGeometry args={[7.5, 32, 32]} />
-        <meshBasicMaterial
-          color="#F1A83A"
-          transparent
-          opacity={0.1}
-          side={THREE.BackSide}
-          depthWrite={false}
-        />
-      </mesh>
-      <mesh ref={halo2Ref}>
-        <sphereGeometry args={[10, 32, 32]} />
-        <meshBasicMaterial
-          color="#F6C35B"
-          transparent
-          opacity={0.045}
-          side={THREE.BackSide}
-          depthWrite={false}
-        />
-      </mesh>
-      <mesh>
-        <sphereGeometry args={[15, 16, 16]} />
-        <meshBasicMaterial
-          color="#F1A83A"
-          transparent
-          opacity={0.02}
-          side={THREE.BackSide}
-          depthWrite={false}
-        />
-      </mesh>
-      <pointLight color="#FFF5CC" intensity={4} distance={500} decay={1} />
-      <pointLight color="#F6C35B" intensity={2} distance={200} decay={2} />
-    </group>
-  );
-}
-
-// ─── Galactic Center marker ──────────────────────────────────────────────────
 function GalacticCenter({ visible }: { visible: boolean }) {
-  const ref = useRef<THREE.Mesh>(null);
+  const ref = useRef<any>(null);
   useFrame((state) => {
     if (ref.current)
       ref.current.rotation.y = state.clock.getElapsedTime() * 0.2;
@@ -617,14 +396,222 @@ function GalacticCenter({ visible }: { visible: boolean }) {
   );
 }
 
-// ─── Solar System Group (for galaxy orbit) ───────────────────────────────────
-interface SolarSystemGroupProps {
+function CameraController({
+  viewMode,
+  selectedPlanet,
+  planetPositionsRef,
+}: {
   viewMode: ViewMode;
-  selectedPlanetName: string | null;
-  onPlanetClick: (planet: PlanetConfig, worldPos: THREE.Vector3) => void;
-  planetPositionsRef: React.MutableRefObject<Record<string, THREE.Vector3>>;
+  selectedPlanet: PlanetConfig | null;
+  planetPositionsRef: React.RefObject<Record<string, Vector3>>;
+}) {
+  const targetPos = useRef(new Vector3(0, 30, 120));
+  const targetLook = useRef(new Vector3(0, 0, 0));
+  useFrame((state) => {
+    if (selectedPlanet) {
+      const pp = planetPositionsRef.current[selectedPlanet.name];
+      if (pp) {
+        const offset = selectedPlanet.size * 6 + 10;
+        targetPos.current.set(
+          pp.x + offset * 0.7,
+          pp.y + offset * 0.4,
+          pp.z + offset * 0.7,
+        );
+        targetLook.current.copy(pp);
+      }
+    } else if (viewMode === "galaxy") {
+      targetPos.current.set(0, 600, 1100);
+      targetLook.current.set(0, 0, 0);
+    } else {
+      targetPos.current.set(0, 30, 120);
+      targetLook.current.set(0, 0, 0);
+    }
+    state.camera.position.lerp(targetPos.current, 0.035);
+    if (state.controls) {
+      (state.controls as any).target.lerp(targetLook.current, 0.035);
+      (state.controls as any).update();
+    }
+  });
+  return null;
+}
+
+function Planet({
+  planet,
+  isSelected,
+  onPlanetClick,
+  planetPositionsRef,
+  speedMultiplier,
+  scaleMode,
+}: {
+  planet: PlanetConfig;
+  isSelected: boolean;
+  onPlanetClick: (p: PlanetConfig, pos: Vector3) => void;
+  planetPositionsRef: React.RefObject<Record<string, Vector3>>;
   speedMultiplier: number;
   scaleMode: boolean;
+}) {
+  const groupRef = useRef<any>(null);
+  const meshRef = useRef<any>(null);
+  const angleRef = useRef(planet.initialAngle ?? 0);
+  const [hovered, setHovered] = useState(false);
+  const emissiveColor = useMemo(() => {
+    const c = new Color(planet.color);
+    c.multiplyScalar(0.3);
+    return c;
+  }, [planet.color]);
+  useFrame((_, delta) => {
+    angleRef.current += planet.speed * delta * 0.5 * speedMultiplier;
+    if (groupRef.current) {
+      const x = Math.cos(angleRef.current) * planet.orbitalRadius;
+      const z = Math.sin(angleRef.current) * planet.orbitalRadius;
+      groupRef.current.position.set(x, 0, z);
+      if (!planetPositionsRef.current[planet.name]) {
+        planetPositionsRef.current[planet.name] = new Vector3();
+      }
+      planetPositionsRef.current[planet.name].set(x, 0, z);
+    }
+    if (meshRef.current) meshRef.current.rotation.y += delta * 0.3;
+  });
+  const tiltRad = (planet.tilt * Math.PI) / 180;
+  function handleClick(e: any) {
+    e.stopPropagation();
+    const worldPos = planetPositionsRef.current[planet.name] ?? new Vector3();
+    onPlanetClick(planet, worldPos.clone());
+  }
+  return (
+    <group ref={groupRef}>
+      <group rotation={[0, 0, tiltRad]}>
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: Three.js mesh -- keyboard N/A */}
+        <mesh
+          ref={meshRef}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(true);
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={() => {
+            setHovered(false);
+            document.body.style.cursor = "default";
+          }}
+          onClick={handleClick}
+        >
+          <sphereGeometry
+            args={[
+              scaleMode
+                ? (TRUE_SCALE_SIZES[planet.name] ?? planet.size)
+                : planet.size,
+              32,
+              32,
+            ]}
+          />
+          <meshStandardMaterial
+            color={planet.color}
+            roughness={0.8}
+            metalness={0.1}
+            emissive={isSelected ? new Color(planet.color) : emissiveColor}
+            emissiveIntensity={isSelected ? 0.4 : 0.05}
+          />
+        </mesh>
+        {isSelected && (
+          <mesh>
+            <sphereGeometry args={[planet.size * 1.15, 32, 32]} />
+            <meshBasicMaterial
+              color={planet.color}
+              transparent
+              opacity={0.12}
+              side={BackSide}
+              depthWrite={false}
+            />
+          </mesh>
+        )}
+        {planet.hasRings && <SaturnRings />}
+        {(hovered || isSelected) && (
+          <Html
+            center
+            position={[0, planet.size + 1.8, 0]}
+            style={{ pointerEvents: "none" }}
+          >
+            <div
+              style={{
+                background: "rgba(11,16,23,0.9)",
+                border: `1px solid ${isSelected ? "rgba(246,195,91,0.8)" : "rgba(246,195,91,0.5)"}`,
+                borderRadius: 8,
+                padding: "4px 11px",
+                color: "#F6C35B",
+                fontSize: 11,
+                fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+              }}
+            >
+              {planet.name}
+            </div>
+          </Html>
+        )}
+      </group>
+    </group>
+  );
+}
+
+function Sun() {
+  const halo1Ref = useRef<any>(null);
+  const halo2Ref = useRef<any>(null);
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    if (halo1Ref.current)
+      halo1Ref.current.material.opacity = 0.08 + Math.sin(t * 0.7) * 0.03;
+    if (halo2Ref.current)
+      halo2Ref.current.material.opacity = 0.04 + Math.sin(t * 0.4 + 1) * 0.015;
+  });
+  return (
+    <group>
+      <mesh>
+        <sphereGeometry args={[7, 32, 32]} />
+        <meshStandardMaterial
+          color="#FFF5CC"
+          emissive="#F6C35B"
+          emissiveIntensity={2.5}
+          roughness={0.3}
+          metalness={0}
+        />
+      </mesh>
+      <mesh ref={halo1Ref}>
+        <sphereGeometry args={[7.5, 32, 32]} />
+        <meshBasicMaterial
+          color="#F1A83A"
+          transparent
+          opacity={0.1}
+          side={BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh ref={halo2Ref}>
+        <sphereGeometry args={[10, 32, 32]} />
+        <meshBasicMaterial
+          color="#F6C35B"
+          transparent
+          opacity={0.045}
+          side={BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+      <mesh>
+        <sphereGeometry args={[15, 16, 16]} />
+        <meshBasicMaterial
+          color="#F1A83A"
+          transparent
+          opacity={0.02}
+          side={BackSide}
+          depthWrite={false}
+        />
+      </mesh>
+      <pointLight color="#FFF5CC" intensity={4} distance={500} decay={1} />
+      <pointLight color="#F6C35B" intensity={2} distance={200} decay={2} />
+    </group>
+  );
 }
 
 function SolarSystemGroup({
@@ -634,22 +621,27 @@ function SolarSystemGroup({
   planetPositionsRef,
   speedMultiplier,
   scaleMode,
-}: SolarSystemGroupProps) {
-  const groupRef = useRef<THREE.Group>(null);
+}: {
+  viewMode: ViewMode;
+  selectedPlanetName: string | null;
+  onPlanetClick: (p: PlanetConfig, pos: Vector3) => void;
+  planetPositionsRef: React.RefObject<Record<string, Vector3>>;
+  speedMultiplier: number;
+  scaleMode: boolean;
+}) {
+  const groupRef = useRef<any>(null);
   const galacticAngle = useRef(Math.PI / 6);
-
   useFrame((_, delta) => {
     if (!groupRef.current) return;
     if (viewMode === "galaxy") {
       galacticAngle.current += delta * 0.018;
       const tx = Math.cos(galacticAngle.current) * 400;
       const tz = Math.sin(galacticAngle.current) * 400;
-      groupRef.current.position.lerp(new THREE.Vector3(tx, 0, tz), 0.04);
+      groupRef.current.position.lerp(new Vector3(tx, 0, tz), 0.04);
     } else {
-      groupRef.current.position.lerp(new THREE.Vector3(0, 0, 0), 0.06);
+      groupRef.current.position.lerp(new Vector3(0, 0, 0), 0.06);
     }
   });
-
   return (
     <group ref={groupRef}>
       <Sun />
@@ -693,7 +685,6 @@ function SolarSystemGroup({
   );
 }
 
-// ─── Main Scene ───────────────────────────────────────────────────────────────
 function Scene({
   viewMode,
   selectedPlanetName,
@@ -703,10 +694,18 @@ function Scene({
   scaleMode,
   onBlackHoleClick,
   audioManagerRef,
-}: SceneProps) {
+}: {
+  viewMode: ViewMode;
+  selectedPlanetName: string | null;
+  onPlanetClick: (p: PlanetConfig, pos: Vector3) => void;
+  planetPositionsRef: React.RefObject<Record<string, Vector3>>;
+  speedMultiplier: number;
+  scaleMode: boolean;
+  onBlackHoleClick: () => void;
+  audioManagerRef: React.RefObject<any>;
+}) {
   const selectedPlanet =
     PLANETS.find((p) => p.name === selectedPlanetName) ?? null;
-
   return (
     <>
       <ambientLight intensity={viewMode === "galaxy" ? 0.03 : 0.08} />
@@ -731,11 +730,9 @@ function Scene({
           speed={0.5}
         />
       )}
-
       <GalaxyParticles visible={viewMode === "galaxy"} />
       <GalacticOrbitLine visible={viewMode === "galaxy"} />
       <GalacticCenter visible={viewMode === "galaxy"} />
-
       <SolarSystemGroup
         viewMode={viewMode}
         selectedPlanetName={selectedPlanetName}
@@ -744,20 +741,17 @@ function Scene({
         speedMultiplier={speedMultiplier}
         scaleMode={scaleMode}
       />
-
       {viewMode === "solar" && (
         <BlackHole
           onBlackHoleClick={onBlackHoleClick}
           audioManagerRef={audioManagerRef}
         />
       )}
-
       <CameraController
         viewMode={viewMode}
         selectedPlanet={selectedPlanet}
         planetPositionsRef={planetPositionsRef}
       />
-
       <OrbitControls
         makeDefault
         minDistance={8}
@@ -771,7 +765,7 @@ function Scene({
   );
 }
 
-// ─── Auth Button ─────────────────────────────────────────────────────────────
+// ─── AuthButton ───────────────────────────────────────────────────────────────
 function AuthButton() {
   const {
     login,
@@ -802,7 +796,7 @@ function AuthButton() {
       <div
         style={{ padding: "8px 14px", display: "flex", alignItems: "center" }}
       >
-        <Loader2
+        <LoaderCircle
           size={14}
           style={{ color: "#F6C35B", animation: "spin 1s linear infinite" }}
         />
@@ -858,7 +852,7 @@ function AuthButton() {
             background: "rgba(11,16,23,0.97)",
             border: "1px solid rgba(246,195,91,0.25)",
             borderRadius: 14,
-            padding: "16px",
+            padding: 16,
             width: 300,
             backdropFilter: "blur(16px)",
             fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
@@ -976,7 +970,7 @@ function AuthButton() {
       }}
     >
       {isLoggingIn ? (
-        <Loader2 size={14} className="animate-spin" />
+        <LoaderCircle size={14} className="animate-spin" />
       ) : (
         <LogIn size={14} />
       )}
@@ -985,9 +979,54 @@ function AuthButton() {
   );
 }
 
-// ─── App ─────────────────────────────────────────────────────────────────────
+// ─── Menu button helper ───────────────────────────────────────────────────────
+function MenuBtn({
+  ocid,
+  onClick,
+  color = "#C8D4E0",
+  border,
+  bg,
+  children,
+}: {
+  ocid: string;
+  onClick: () => void;
+  color?: string;
+  border?: string;
+  bg?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      data-ocid={ocid}
+      onClick={onClick}
+      style={{
+        width: "100%",
+        padding: "9px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        color,
+        cursor: "pointer",
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        border: border ?? "1px solid transparent",
+        background: bg ?? "transparent",
+        borderRadius: 10,
+        transition: "all 0.15s",
+        textAlign: "left",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [showSolarSystem, setShowSolarSystem] = useState(false);
+  const [showSolarSystem, setShowSolarSystem] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("solar");
   const [selectedPlanetName, setSelectedPlanetName] = useState<string | null>(
     null,
@@ -996,7 +1035,7 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [surfaceViewPlanet, setSurfaceViewPlanet] =
     useState<PlanetConfig | null>(null);
-  const planetPositionsRef = useRef<Record<string, THREE.Vector3>>({});
+  const planetPositionsRef = useRef<Record<string, Vector3>>({});
   const { identity } = useInternetIdentity();
   const { isMuted, toggleMute } = useSpaceAudio("space");
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
@@ -1019,10 +1058,17 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [blackHoleOpen, setBlackHoleOpen] = useState(false);
   const [audioSettingsOpen, setAudioSettingsOpen] = useState(false);
-  const audioManagerRef = useRef<typeof audioManager | null>(null);
+  const [creditShopOpen, setCreditShopOpen] = useState(false);
+  const [dailyTasksOpen, setDailyTasksOpen] = useState(false);
+  const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
+  const [nftTeaserOpen, setNftTeaserOpen] = useState(false);
+  const [novaCredits, setNovaCredits] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const audioManagerRef = useRef<any>(null);
   const [cometVisible, setCometVisible] = useState(false);
   const [cometStyle, setCometStyle] = useState({ top: "10%", angle: 45 });
   const [solarFlareVisible, setSolarFlareVisible] = useState(false);
+
   const anyModalOpen =
     donationOpen ||
     searchOpen ||
@@ -1038,12 +1084,17 @@ export default function App() {
     audioSettingsOpen ||
     blackHoleOpen ||
     multiverseOpen ||
-    !!surfaceViewPlanet;
+    !!surfaceViewPlanet ||
+    creditShopOpen ||
+    dailyTasksOpen ||
+    adminDashboardOpen ||
+    nftTeaserOpen;
+
   const [topBarVisible, setTopBarVisible] = useState(true);
   const topBarTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const menuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Comet flyby effect
+  // Comet flyby
   useEffect(() => {
     function scheduleComet() {
       const delay = 30000 + Math.random() * 15000;
@@ -1061,7 +1112,7 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
-  // Solar flare effect
+  // Solar flare
   useEffect(() => {
     function scheduleFlare() {
       const delay = 60000 + Math.random() * 30000;
@@ -1083,6 +1134,7 @@ export default function App() {
     const t = scheduleFlare();
     return () => clearTimeout(t);
   }, []);
+
   const [achievements, setAchievements] = useState<AchievementState>(() =>
     loadAchievements(),
   );
@@ -1092,6 +1144,26 @@ export default function App() {
   const { data: isPremiumUser = false } = useIsPremiumUser(
     isLoggedIn ? principal : null,
   );
+  const { actor } = useActor();
+
+  // Load credits and record login
+  useEffect(() => {
+    if (!isLoggedIn || !actor) return;
+    async function initUser() {
+      try {
+        const [bal, adminStatus] = await Promise.all([
+          actor!.getBalance(),
+          actor!.isCallerAdmin(),
+          actor!.recordLogin(),
+        ]);
+        setNovaCredits(Number(bal));
+        setIsAdmin(adminStatus);
+      } catch {
+        /* non-fatal */
+      }
+    }
+    initUser();
+  }, [isLoggedIn, actor]);
 
   function updateAchievement(update: Partial<AchievementState>) {
     setAchievements((prev) => {
@@ -1101,15 +1173,22 @@ export default function App() {
     });
   }
 
+  function getRank(credits: number): string {
+    if (credits >= 10000) return "Legend";
+    if (credits >= 5000) return "Admiral";
+    if (credits >= 2000) return "Commander";
+    if (credits >= 500) return "Explorer";
+    return "Cadet";
+  }
+
   const selectedPlanetDetails: PlanetDetails | null = selectedPlanetName
     ? (PLANET_DETAILS[selectedPlanetName] ?? null)
     : null;
-
   const selectedPlanetConfig: PlanetConfig | null = selectedPlanetName
     ? (PLANETS.find((p) => p.name === selectedPlanetName) ?? null)
     : null;
 
-  // Initialize AudioManager on first interaction
+  // Init audio on first interaction
   useEffect(() => {
     function initAudio() {
       audioManager.init();
@@ -1146,11 +1225,8 @@ export default function App() {
     setTimeout(() => {
       setViewMode((v) => {
         const next = v === "galaxy" ? "solar" : "galaxy";
-        if (next === "galaxy") {
-          audioManager.startGalaxyAmbient();
-        } else {
-          audioManager.startSolarSystemAmbient();
-        }
+        if (next === "galaxy") audioManager.startGalaxyAmbient();
+        else audioManager.startSolarSystemAmbient();
         return next;
       });
       setSelectedPlanetName(null);
@@ -1162,16 +1238,88 @@ export default function App() {
     });
   }, []);
 
-  const handleLandOnPlanet = useCallback(() => {
-    if (selectedPlanetConfig) {
-      setSurfaceViewPlanet(selectedPlanetConfig);
-      setAchievements((prev) => {
-        const next = { ...prev, landedOnSurface: true };
-        saveAchievements(next);
-        return next;
-      });
+  const handleLandOnPlanet = useCallback(async () => {
+    if (!selectedPlanetConfig) return;
+    // Credit-gated: premium users free; others spend 50 credits
+    if (!isPremiumUser) {
+      if (novaCredits < 50) {
+        toast.error(
+          "Requires Premium access or 50 Nova Credits to land on planets.",
+          {
+            style: {
+              background: "rgba(11,16,23,0.95)",
+              border: "1px solid rgba(248,113,113,0.4)",
+              color: "#f87171",
+            },
+          },
+        );
+        setDonationOpen(true);
+        return;
+      }
+      if (actor) {
+        const success = await actor.spendCredits(50n);
+        if (!success) {
+          toast.error("Insufficient Nova Credits.");
+          return;
+        }
+        setNovaCredits((prev) => Math.max(0, prev - 50));
+        toast.success("✦ 50 Nova Credits spent — enjoy the surface!", {
+          style: {
+            background: "rgba(11,16,23,0.95)",
+            border: "1px solid rgba(246,195,91,0.4)",
+            color: "#F6C35B",
+          },
+        });
+      }
     }
-  }, [selectedPlanetConfig]);
+    setSurfaceViewPlanet(selectedPlanetConfig);
+    setAchievements((prev) => {
+      const next = { ...prev, landedOnSurface: true };
+      saveAchievements(next);
+      return next;
+    });
+  }, [selectedPlanetConfig, isPremiumUser, novaCredits, actor]);
+
+  const handleGalaxyToggle = useCallback(async () => {
+    if (viewMode === "galaxy") {
+      toggleGalaxy();
+      return;
+    }
+    // Entering galaxy view: premium = free; otherwise 100 credits
+    if (!isPremiumUser) {
+      if (novaCredits < 100) {
+        toast.error(
+          "Requires Premium access or 100 Nova Credits to access Galaxy View.",
+          {
+            style: {
+              background: "rgba(11,16,23,0.95)",
+              border: "1px solid rgba(248,113,113,0.4)",
+              color: "#f87171",
+            },
+          },
+        );
+        setDonationOpen(true);
+        setMenuOpen(false);
+        return;
+      }
+      if (actor) {
+        const success = await actor.spendCredits(100n);
+        if (!success) {
+          toast.error("Insufficient Nova Credits.");
+          return;
+        }
+        setNovaCredits((prev) => Math.max(0, prev - 100));
+        toast.success("✦ 100 Nova Credits spent — welcome to the Galaxy!", {
+          style: {
+            background: "rgba(11,16,23,0.95)",
+            border: "1px solid rgba(246,195,91,0.4)",
+            color: "#F6C35B",
+          },
+        });
+      }
+    }
+    toggleGalaxy();
+  }, [viewMode, isPremiumUser, novaCredits, actor, toggleGalaxy]);
 
   const resetTopBarTimer = () => {
     setTopBarVisible(true);
@@ -1193,6 +1341,15 @@ export default function App() {
       </ErrorBoundary>
     );
   }
+
+  const isGalaxyLocked =
+    !isPremiumUser && viewMode !== "galaxy" && novaCredits < 100;
+  const galaxyLockLabel =
+    !isPremiumUser && viewMode !== "galaxy"
+      ? novaCredits >= 100
+        ? "100 Credits"
+        : "★ PREMIUM"
+      : undefined;
 
   return (
     <div
@@ -1216,7 +1373,7 @@ export default function App() {
           gl={{
             antialias: true,
             alpha: false,
-            toneMapping: THREE.ACESFilmicToneMapping,
+            toneMapping: ACESFilmicToneMapping,
             toneMappingExposure: 1.2,
           }}
         >
@@ -1232,11 +1389,11 @@ export default function App() {
           />
         </Canvas>
       </ErrorBoundary>
-      {/* Cinematic overlay when any modal is open */}
+
+      {/* Modal dim overlay */}
       <AnimatePresence>
         {anyModalOpen && (
           <motion.div
-            key="modal-overlay"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1249,6 +1406,7 @@ export default function App() {
               backdropFilter: "blur(6px)",
               WebkitBackdropFilter: "blur(6px)",
             }}
+            key="modal-overlay"
           />
         )}
       </AnimatePresence>
@@ -1270,16 +1428,15 @@ export default function App() {
           zIndex: 10,
         }}
       >
-        {/* Auth */}
         <div style={{ pointerEvents: "auto" }}>
           <AuthButton />
         </div>
       </motion.div>
 
-      {/* Planet detail panel */}
+      {/* Planet panel */}
       <PlanetPanel planet={selectedPlanetDetails} onClose={handleClosePanel} />
 
-      {/* Land on Planet button — appears when a planet is selected */}
+      {/* Land on Planet button */}
       <AnimatePresence>
         {selectedPlanetName && selectedPlanetConfig && (
           <motion.button
@@ -1316,11 +1473,14 @@ export default function App() {
           >
             <Rocket size={13} />
             Land on {selectedPlanetName}
+            {!isPremiumUser && (
+              <span style={{ fontSize: 9, opacity: 0.8 }}>(50 ✦)</span>
+            )}
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Journal button - when planet selected */}
+      {/* Planet Journal button */}
       <AnimatePresence>
         {selectedPlanetName && (
           <motion.button
@@ -1358,7 +1518,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* ── Floating menu toggle button ─────────────────────────── */}
+      {/* Menu toggle button */}
       <motion.button
         type="button"
         data-ocid="menu.toggle"
@@ -1380,7 +1540,7 @@ export default function App() {
           border: menuOpen
             ? "1px solid rgba(246,195,91,0.6)"
             : "1px solid rgba(246,195,91,0.5)",
-          color: menuOpen ? "#F6C35B" : "#F6C35B",
+          color: "#F6C35B",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
@@ -1408,7 +1568,7 @@ export default function App() {
         </svg>
       </motion.button>
 
-      {/* ── Slide-out controls panel ─────────────────────────────── */}
+      {/* Menu panel */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
@@ -1441,7 +1601,6 @@ export default function App() {
               fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
             }}
           >
-            {/* Section label */}
             <div
               style={{
                 color: "#F6C35B",
@@ -1457,21 +1616,17 @@ export default function App() {
               Controls
             </div>
 
-            {/* Galaxy toggle — premium gated */}
+            {/* Galaxy toggle — credit/premium gated */}
             <button
               type="button"
               data-ocid="galaxy.toggle"
               onClick={() => {
-                if (!isPremiumUser && viewMode !== "galaxy") {
-                  setDonationOpen(true);
-                  setMenuOpen(false);
-                  return;
-                }
-                toggleGalaxy();
+                setMenuOpen(false);
+                handleGalaxyToggle();
               }}
               title={
-                !isPremiumUser && viewMode !== "galaxy"
-                  ? "Donate to unlock Galaxy View"
+                galaxyLockLabel
+                  ? `${galaxyLockLabel} to unlock Galaxy View`
                   : undefined
               }
               style={{
@@ -1497,12 +1652,12 @@ export default function App() {
                 borderRadius: 10,
                 transition: "all 0.2s",
                 textAlign: "left",
-                opacity: !isPremiumUser && viewMode !== "galaxy" ? 0.7 : 1,
+                opacity: isGalaxyLocked ? 0.7 : 1,
               }}
             >
               <Globe2 size={14} style={{ flexShrink: 0 }} />
               {viewMode === "galaxy" ? "Solar System View" : "Galaxy View"}
-              {!isPremiumUser && viewMode !== "galaxy" && (
+              {galaxyLockLabel && (
                 <span
                   style={{
                     marginLeft: "auto",
@@ -1511,96 +1666,40 @@ export default function App() {
                     letterSpacing: "0.1em",
                   }}
                 >
-                  ★ PREMIUM
+                  {galaxyLockLabel}
                 </span>
               )}
             </button>
 
-            {/* Donate button */}
-            <button
-              type="button"
-              data-ocid="donation.open_modal_button"
+            {/* Donate */}
+            <MenuBtn
+              ocid="donation.open_modal_button"
               onClick={() => {
                 setDonationOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               <Heart size={14} color="#F6C35B" style={{ flexShrink: 0 }} />
               Support Exploration
-            </button>
+            </MenuBtn>
 
-            {/* Search button */}
-            <button
-              type="button"
-              data-ocid="planet_search.open_modal_button"
+            {/* Search */}
+            <MenuBtn
+              ocid="planet_search.open_modal_button"
               onClick={() => {
                 setSearchOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               <Search size={14} color="#7de8e8" style={{ flexShrink: 0 }} />
               Search Planets
-            </button>
+            </MenuBtn>
 
-            {/* Mute toggle */}
-            <button
-              type="button"
-              data-ocid="audio.toggle"
+            {/* Audio */}
+            <MenuBtn
+              ocid="audio.toggle"
               onClick={toggleMute}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: isMuted ? "#9AA7B6" : "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
+              color={isMuted ? "#9AA7B6" : "#C8D4E0"}
             >
               {isMuted ? (
                 <VolumeX size={14} style={{ flexShrink: 0 }} />
@@ -1608,9 +1707,8 @@ export default function App() {
                 <Volume2 size={14} style={{ flexShrink: 0 }} />
               )}
               {isMuted ? "Audio Off" : "Audio On"}
-            </button>
+            </MenuBtn>
 
-            {/* Divider */}
             <div
               style={{
                 borderTop: "1px solid rgba(255,255,255,0.07)",
@@ -1618,7 +1716,7 @@ export default function App() {
               }}
             />
 
-            {/* Time Travel Slider */}
+            {/* Speed */}
             <div
               style={{
                 padding: "8px 14px",
@@ -1654,67 +1752,36 @@ export default function App() {
               />
             </div>
 
-            {/* Scale Mode */}
-            <button
-              type="button"
-              data-ocid="scale.toggle"
+            {/* Scale */}
+            <MenuBtn
+              ocid="scale.toggle"
               onClick={() => setScaleMode((v) => !v)}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: scaleMode ? "#F6C35B" : "#F6C35B",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: scaleMode
+              color="#F6C35B"
+              border={
+                scaleMode
                   ? "1px solid rgba(246,195,91,0.4)"
-                  : "1px solid transparent",
-                background: scaleMode ? "rgba(246,195,91,0.08)" : "transparent",
-                borderRadius: 10,
-                transition: "all 0.2s",
-                textAlign: "left",
-              }}
+                  : "1px solid transparent"
+              }
+              bg={scaleMode ? "rgba(246,195,91,0.08)" : "transparent"}
             >
               🔭 {scaleMode ? "True Scale ON" : "True Scale"}
-            </button>
+            </MenuBtn>
 
-            {/* Constellation Mode */}
-            <button
-              type="button"
-              data-ocid="constellation.toggle"
+            {/* Constellations */}
+            <MenuBtn
+              ocid="constellation.toggle"
               onClick={() => setConstellationMode((v) => !v)}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: constellationMode ? "#F6C35B" : "#F6C35B",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: constellationMode
+              color="#F6C35B"
+              border={
+                constellationMode
                   ? "1px solid rgba(246,195,91,0.4)"
-                  : "1px solid transparent",
-                background: constellationMode
-                  ? "rgba(246,195,91,0.08)"
-                  : "transparent",
-                borderRadius: 10,
-                transition: "all 0.2s",
-                textAlign: "left",
-              }}
+                  : "1px solid transparent"
+              }
+              bg={constellationMode ? "rgba(246,195,91,0.08)" : "transparent"}
             >
               ✨ Constellations
-            </button>
+            </MenuBtn>
 
-            {/* Divider */}
             <div
               style={{
                 borderTop: "1px solid rgba(255,255,255,0.07)",
@@ -1734,157 +1801,52 @@ export default function App() {
               Activities
             </div>
 
-            {/* Planet Quiz */}
-            <button
-              type="button"
-              data-ocid="quiz.open_modal_button"
+            <MenuBtn
+              ocid="quiz.open_modal_button"
               onClick={() => {
                 setQuizOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               🧠 Planet Quiz
-            </button>
-
-            {/* Achievements */}
-            <button
-              type="button"
-              data-ocid="achievements.open_modal_button"
+            </MenuBtn>
+            <MenuBtn
+              ocid="achievements.open_modal_button"
               onClick={() => {
                 setAchievementsOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               🏆 Achievements
-            </button>
-
-            {/* Space Missions */}
-            <button
-              type="button"
-              data-ocid="missions.open_modal_button"
+            </MenuBtn>
+            <MenuBtn
+              ocid="missions.open_modal_button"
               onClick={() => {
                 setMissionsOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               🚀 Space Missions
-            </button>
-
-            {/* Leaderboard */}
-            <button
-              type="button"
-              data-ocid="leaderboard.open_modal_button"
+            </MenuBtn>
+            <MenuBtn
+              ocid="leaderboard.open_modal_button"
               onClick={() => {
                 setLeaderboardOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               🏅 Leaderboard
-            </button>
-
-            {/* Name a Star */}
-            <button
-              type="button"
-              data-ocid="namestar.open_modal_button"
+            </MenuBtn>
+            <MenuBtn
+              ocid="namestar.open_modal_button"
               onClick={() => {
                 setNameStarOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               ⭐ Name a Star
-            </button>
+            </MenuBtn>
 
-            {/* Daily Challenge */}
             <button
               type="button"
               data-ocid="daily_challenge.open_modal_button"
@@ -1930,129 +1892,107 @@ export default function App() {
               )}
             </button>
 
-            {/* Space Timeline */}
-            <button
-              type="button"
-              data-ocid="timeline.open_modal_button"
+            <MenuBtn
+              ocid="timeline.open_modal_button"
               onClick={() => {
                 setTimelineOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               📅 Space Timeline
-            </button>
-
-            {/* Multiverse */}
-            <button
-              type="button"
-              data-ocid="multiverse.open_modal_button"
+            </MenuBtn>
+            <MenuBtn
+              ocid="multiverse.open_modal_button"
               onClick={() => {
                 setMultiverseOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               ∞ Multiverse
-            </button>
-            {/* Audio Settings */}
-            <button
-              type="button"
-              data-ocid="audio_settings.open_modal_button"
+            </MenuBtn>
+            <MenuBtn
+              ocid="audio_settings.open_modal_button"
               onClick={() => {
                 setAudioSettingsOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               🔊 Audio Settings
-            </button>
-
-            {/* Support & Revenue */}
-            <button
-              type="button"
-              data-ocid="monetize.open_modal_button"
+            </MenuBtn>
+            <MenuBtn
+              ocid="monetize.open_modal_button"
               onClick={() => {
                 setMonetizeOpen(true);
                 setMenuOpen(false);
               }}
-              style={{
-                width: "100%",
-                padding: "9px 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                color: "#C8D4E0",
-                cursor: "pointer",
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
-                border: "1px solid transparent",
-                background: "transparent",
-                borderRadius: 10,
-                transition: "all 0.15s",
-                textAlign: "left",
-              }}
             >
               💰 Support & Revenue
-            </button>
+            </MenuBtn>
+
+            {/* Nova Credits Shop */}
+            <MenuBtn
+              ocid="nova_credits.open_modal_button"
+              onClick={() => {
+                setCreditShopOpen(true);
+                setMenuOpen(false);
+              }}
+              color="#F6C35B"
+              border="1px solid rgba(246,195,91,0.2)"
+              bg="rgba(246,195,91,0.06)"
+            >
+              ✦ Nova Credits Shop
+            </MenuBtn>
+
+            {/* Daily Tasks */}
+            <MenuBtn
+              ocid="daily_tasks.open_modal_button"
+              onClick={() => {
+                setDailyTasksOpen(true);
+                setMenuOpen(false);
+              }}
+            >
+              ✅ Daily Tasks
+            </MenuBtn>
+
+            {/* NFT Collection */}
+            <MenuBtn
+              ocid="nft.open_modal_button"
+              onClick={() => {
+                setNftTeaserOpen(true);
+                setMenuOpen(false);
+              }}
+              color="#a78bfa"
+              border="1px solid rgba(167,139,250,0.2)"
+              bg="rgba(167,139,250,0.06)"
+            >
+              🌌 NFT Collection
+            </MenuBtn>
+
+            {/* Admin Dashboard (admin only) */}
+            {isAdmin && (
+              <MenuBtn
+                ocid="admin.open_modal_button"
+                onClick={() => {
+                  setAdminDashboardOpen(true);
+                  setMenuOpen(false);
+                }}
+                color="#60a5fa"
+                border="1px solid rgba(96,165,250,0.2)"
+                bg="rgba(96,165,250,0.06)"
+              >
+                🛡️ Admin Dashboard
+              </MenuBtn>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Hint bar */}
+      {/* Nova Credits display */}
+      {isLoggedIn && (
+        <NovaCreditsDisplay credits={novaCredits} rank={getRank(novaCredits)} />
+      )}
+
+      {/* Bottom hint */}
       <div
         style={{
           position: "absolute",
@@ -2106,26 +2046,18 @@ export default function App() {
         </a>
       </div>
 
-      {/* Donation modal */}
+      {/* Modals */}
       <DonationModal open={donationOpen} onOpenChange={setDonationOpen} />
-
-      {/* Planet search modal */}
       <PlanetSearch
         open={searchOpen}
         onOpenChange={setSearchOpen}
         onSelectPlanet={(name) => {
-          // Guard: only zoom if planet has a real position (not zero/Sun origin)
           const pos = planetPositionsRef.current[name];
-          if (pos && pos.length() > 0.1) {
-            setSelectedPlanetName(name);
-          } else {
-            // Planet not yet rendered; still select it so it gets highlighted
-            setSelectedPlanetName(name);
-          }
+          if (pos && pos.length() > 0.1) setSelectedPlanetName(name);
+          else setSelectedPlanetName(name);
         }}
       />
 
-      {/* Surface view overlay */}
       <AnimatePresence>
         {surfaceViewPlanet && (
           <SurfaceView
@@ -2136,40 +2068,32 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Constellation Overlay */}
       <ConstellationOverlay active={constellationMode} />
-
-      {/* Wormhole effect */}
       <WormholeEffect
         active={wormholeActive}
         onDone={() => setWormholeActive(false)}
       />
 
-      {/* Planet Quiz */}
       <PlanetQuiz
         open={quizOpen}
         onOpenChange={setQuizOpen}
         onQuizComplete={() => updateAchievement({ usedQuiz: true })}
       />
-
-      {/* Achievements Panel */}
       <AchievementsPanel
         open={achievementsOpen}
         onOpenChange={setAchievementsOpen}
         achievements={achievements}
       />
-
-      {/* Space Missions */}
       <SpaceMissions
         open={missionsOpen}
         onOpenChange={setMissionsOpen}
         onNavigateToPlanet={(name) => setSelectedPlanetName(name)}
+        novaCredits={novaCredits}
+        onCreditsSpent={(amount) =>
+          setNovaCredits((prev) => Math.max(0, prev - amount))
+        }
       />
-
-      {/* Leaderboard */}
       <Leaderboard open={leaderboardOpen} onOpenChange={setLeaderboardOpen} />
-
-      {/* Planet Journal */}
       {selectedPlanetName && (
         <PlanetJournal
           open={journalOpen}
@@ -2180,32 +2104,22 @@ export default function App() {
           }
         />
       )}
-
-      {/* Name a Star */}
       <NameAStar
         open={nameStarOpen}
         onOpenChange={setNameStarOpen}
         onStarNamed={() => updateAchievement({ namedAStar: true })}
       />
-
-      {/* Monetization Modal */}
       <MonetizationModal open={monetizeOpen} onOpenChange={setMonetizeOpen} />
-
-      {/* Daily Challenge */}
       <DailyChallenge
         open={dailyChallengeOpen}
         onOpenChange={setDailyChallengeOpen}
       />
-
-      {/* Space Timeline */}
       <SpaceTimeline open={timelineOpen} onOpenChange={setTimelineOpen} />
-
-      {/* Multiverse View */}
       {multiverseOpen && (
         <MultiverseView onClose={() => setMultiverseOpen(false)} />
       )}
 
-      {/* Comet Flyby Overlay */}
+      {/* Comet */}
       <AnimatePresence>
         {cometVisible && (
           <motion.div
@@ -2226,7 +2140,6 @@ export default function App() {
               transform: `rotate(${cometStyle.angle}deg)`,
             }}
           >
-            {/* Tail */}
             <div
               style={{
                 width: 120,
@@ -2240,7 +2153,6 @@ export default function App() {
                 filter: "blur(0.5px)",
               }}
             />
-            {/* Head */}
             <div
               style={{
                 width: 6,
@@ -2258,7 +2170,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Solar Flare Overlay */}
+      {/* Solar flare */}
       <AnimatePresence>
         {solarFlareVisible && (
           <motion.div
@@ -2290,18 +2202,14 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Black Hole Panel */}
       <BlackHolePanel
         open={blackHoleOpen}
         onClose={() => setBlackHoleOpen(false)}
       />
-
-      {/* Audio Settings */}
       <AudioSettings
         open={audioSettingsOpen}
         onClose={() => setAudioSettingsOpen(false)}
       />
-
       <Toaster
         theme="dark"
         toastOptions={{
@@ -2312,6 +2220,23 @@ export default function App() {
             fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
           },
         }}
+      />
+      <CreditShop
+        isOpen={creditShopOpen}
+        onClose={() => setCreditShopOpen(false)}
+      />
+      <DailyTaskPanel
+        isOpen={dailyTasksOpen}
+        onClose={() => setDailyTasksOpen(false)}
+        onCreditsEarned={(amount) => setNovaCredits((prev) => prev + amount)}
+      />
+      <AdminDashboard
+        isOpen={adminDashboardOpen}
+        onClose={() => setAdminDashboardOpen(false)}
+      />
+      <NFTTeaser
+        isOpen={nftTeaserOpen}
+        onClose={() => setNftTeaserOpen(false)}
       />
     </div>
   );

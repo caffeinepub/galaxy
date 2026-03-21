@@ -20,6 +20,13 @@ export const ShoppingItem = IDL.Record({
   'priceInCents' : IDL.Nat,
   'productDescription' : IDL.Text,
 });
+export const AdminStats = IDL.Record({
+  'totalNovaCredits' : IDL.Nat,
+  'totalUsers' : IDL.Nat,
+  'totalLoginsToday' : IDL.Nat,
+  'totalDonations' : IDL.Nat,
+  'pendingPurchases' : IDL.Nat,
+});
 export const Time = IDL.Int;
 export const Star = IDL.Record({
   'owner' : IDL.Principal,
@@ -44,6 +51,10 @@ export const PlanetJournal = IDL.Record({
   'author' : IDL.Principal,
   'timestamp' : Time,
 });
+export const LoginRecord = IDL.Record({
+  'user' : IDL.Principal,
+  'timestamp' : Time,
+});
 export const StripeSessionStatus = IDL.Variant({
   'completed' : IDL.Record({
     'userPrincipal' : IDL.Opt(IDL.Text),
@@ -54,6 +65,20 @@ export const StripeSessionStatus = IDL.Variant({
 export const DonorAggregate = IDL.Record({
   'principal' : IDL.Principal,
   'totalAmount' : IDL.Nat,
+});
+export const PurchaseRequestStatus = IDL.Variant({
+  'pending' : IDL.Null,
+  'approved' : IDL.Null,
+  'rejected' : IDL.Null,
+});
+export const PurchaseRequest = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : PurchaseRequestStatus,
+  'cryptoType' : IDL.Text,
+  'transactionHash' : IDL.Text,
+  'user' : IDL.Principal,
+  'timestamp' : Time,
+  'creditsRequested' : IDL.Nat,
 });
 export const StripeConfiguration = IDL.Record({
   'allowedCountries' : IDL.Vec(IDL.Text),
@@ -80,13 +105,17 @@ export const TransformationOutput = IDL.Record({
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'approvePurchaseRequest' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'createCheckoutSession' : IDL.Func(
       [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
       [IDL.Text],
       [],
     ),
+  'earnCredits' : IDL.Func([IDL.Nat], [], []),
+  'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
   'getAllStars' : IDL.Func([], [IDL.Vec(Star)], ['query']),
+  'getBalance' : IDL.Func([], [IDL.Nat], []),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getDonations' : IDL.Func([], [IDL.Vec(Donation)], ['query']),
@@ -95,8 +124,10 @@ export const idlService = IDL.Service({
       [IDL.Vec(PlanetJournal)],
       ['query'],
     ),
+  'getLoginActivity' : IDL.Func([], [IDL.Vec(LoginRecord)], ['query']),
   'getStarsByOwner' : IDL.Func([IDL.Principal], [IDL.Vec(Star)], ['query']),
   'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
+  'getTodayLoginCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getTopDonors' : IDL.Func([], [IDL.Vec(DonorAggregate)], ['query']),
   'getTotalDonations' : IDL.Func([], [IDL.Nat], ['query']),
   'getUserProfile' : IDL.Func(
@@ -104,13 +135,22 @@ export const idlService = IDL.Service({
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
+  'getUserPurchaseRequests' : IDL.Func(
+      [],
+      [IDL.Vec(PurchaseRequest)],
+      ['query'],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isPremiumUser' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
   'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
   'recordDonation' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+  'recordLogin' : IDL.Func([], [], []),
+  'rejectPurchaseRequest' : IDL.Func([IDL.Nat], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+  'spendCredits' : IDL.Func([IDL.Nat], [IDL.Bool], []),
   'submitJournalEntry' : IDL.Func([IDL.Text, IDL.Text], [], []),
+  'submitPurchaseRequest' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
   'submitStar' : IDL.Func([IDL.Text, IDL.Text], [], []),
   'transform' : IDL.Func(
       [TransformationInput],
@@ -133,6 +173,13 @@ export const idlFactory = ({ IDL }) => {
     'quantity' : IDL.Nat,
     'priceInCents' : IDL.Nat,
     'productDescription' : IDL.Text,
+  });
+  const AdminStats = IDL.Record({
+    'totalNovaCredits' : IDL.Nat,
+    'totalUsers' : IDL.Nat,
+    'totalLoginsToday' : IDL.Nat,
+    'totalDonations' : IDL.Nat,
+    'pendingPurchases' : IDL.Nat,
   });
   const Time = IDL.Int;
   const Star = IDL.Record({
@@ -158,6 +205,10 @@ export const idlFactory = ({ IDL }) => {
     'author' : IDL.Principal,
     'timestamp' : Time,
   });
+  const LoginRecord = IDL.Record({
+    'user' : IDL.Principal,
+    'timestamp' : Time,
+  });
   const StripeSessionStatus = IDL.Variant({
     'completed' : IDL.Record({
       'userPrincipal' : IDL.Opt(IDL.Text),
@@ -168,6 +219,20 @@ export const idlFactory = ({ IDL }) => {
   const DonorAggregate = IDL.Record({
     'principal' : IDL.Principal,
     'totalAmount' : IDL.Nat,
+  });
+  const PurchaseRequestStatus = IDL.Variant({
+    'pending' : IDL.Null,
+    'approved' : IDL.Null,
+    'rejected' : IDL.Null,
+  });
+  const PurchaseRequest = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : PurchaseRequestStatus,
+    'cryptoType' : IDL.Text,
+    'transactionHash' : IDL.Text,
+    'user' : IDL.Principal,
+    'timestamp' : Time,
+    'creditsRequested' : IDL.Nat,
   });
   const StripeConfiguration = IDL.Record({
     'allowedCountries' : IDL.Vec(IDL.Text),
@@ -191,13 +256,17 @@ export const idlFactory = ({ IDL }) => {
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'approvePurchaseRequest' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'createCheckoutSession' : IDL.Func(
         [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
         [IDL.Text],
         [],
       ),
+    'earnCredits' : IDL.Func([IDL.Nat], [], []),
+    'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
     'getAllStars' : IDL.Func([], [IDL.Vec(Star)], ['query']),
+    'getBalance' : IDL.Func([], [IDL.Nat], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getDonations' : IDL.Func([], [IDL.Vec(Donation)], ['query']),
@@ -206,8 +275,10 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(PlanetJournal)],
         ['query'],
       ),
+    'getLoginActivity' : IDL.Func([], [IDL.Vec(LoginRecord)], ['query']),
     'getStarsByOwner' : IDL.Func([IDL.Principal], [IDL.Vec(Star)], ['query']),
     'getStripeSessionStatus' : IDL.Func([IDL.Text], [StripeSessionStatus], []),
+    'getTodayLoginCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getTopDonors' : IDL.Func([], [IDL.Vec(DonorAggregate)], ['query']),
     'getTotalDonations' : IDL.Func([], [IDL.Nat], ['query']),
     'getUserProfile' : IDL.Func(
@@ -215,13 +286,22 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'getUserPurchaseRequests' : IDL.Func(
+        [],
+        [IDL.Vec(PurchaseRequest)],
+        ['query'],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isPremiumUser' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isStripeConfigured' : IDL.Func([], [IDL.Bool], ['query']),
     'recordDonation' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+    'recordLogin' : IDL.Func([], [], []),
+    'rejectPurchaseRequest' : IDL.Func([IDL.Nat], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setStripeConfiguration' : IDL.Func([StripeConfiguration], [], []),
+    'spendCredits' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'submitJournalEntry' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'submitPurchaseRequest' : IDL.Func([IDL.Text, IDL.Text, IDL.Nat], [], []),
     'submitStar' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'transform' : IDL.Func(
         [TransformationInput],

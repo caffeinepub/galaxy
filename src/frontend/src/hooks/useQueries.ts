@@ -184,3 +184,16 @@ export function useIsPremiumUser(principal: string | null) {
     enabled: !!actor && !isFetching && !!principal,
   });
 }
+
+export function useUserPurchaseRequests(enabled = true) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["userPurchaseRequests"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getUserPurchaseRequests();
+    },
+    enabled: !!actor && !isFetching && enabled,
+    refetchInterval: enabled ? 30_000 : false,
+  });
+}

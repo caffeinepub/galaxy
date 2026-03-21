@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import { audioManager } from "../utils/AudioManager";
 
 // ─── Speech synthesis hook ────────────────────────────────────────────────────
@@ -1417,26 +1419,74 @@ function RoleSelectScreen({
   );
 }
 
+const MISSION_COST = 150;
+
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onNavigateToPlanet?: (name: string) => void;
+  novaCredits?: number;
+  onCreditsSpent?: (amount: number) => void;
 }
 
 export function SpaceMissions({
   open,
   onOpenChange,
   onNavigateToPlanet,
+  novaCredits = 0,
+  onCreditsSpent,
 }: Props) {
+  const { actor } = useActor();
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [roleScreen, setRoleScreen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<MissionRole>("pilot");
+  const [launching, setLaunching] = useState<string | null>(null);
 
-  function handleSelectMission(m: Mission) {
-    setActiveMission(m);
-    setRoleScreen(true);
-    if (onNavigateToPlanet && m.planets.length > 0) {
-      onNavigateToPlanet(m.planets[0]);
+  async function handleSelectMission(m: Mission) {
+    if (!actor) {
+      toast.error("Please log in to launch missions.");
+      return;
+    }
+    if (novaCredits < MISSION_COST) {
+      toast.error(
+        `Insufficient Nova Credits. Need ${MISSION_COST} credits to launch.`,
+        {
+          style: {
+            background: "rgba(11,16,23,0.95)",
+            border: "1px solid rgba(248,113,113,0.4)",
+            color: "#f87171",
+          },
+        },
+      );
+      return;
+    }
+    setLaunching(m.id);
+    try {
+      const success = await actor.spendCredits(BigInt(MISSION_COST));
+      if (!success) {
+        toast.error("Insufficient Nova Credits.");
+        return;
+      }
+      onCreditsSpent?.(MISSION_COST);
+      toast.success(
+        `✦ ${MISSION_COST} Nova Credits spent — launching mission!`,
+        {
+          style: {
+            background: "rgba(11,16,23,0.95)",
+            border: "1px solid rgba(246,195,91,0.4)",
+            color: "#F6C35B",
+          },
+        },
+      );
+      setActiveMission(m);
+      setRoleScreen(true);
+      if (onNavigateToPlanet && m.planets.length > 0) {
+        onNavigateToPlanet(m.planets[0]);
+      }
+    } catch {
+      toast.error("Failed to process credit payment.");
+    } finally {
+      setLaunching(null);
     }
   }
 
@@ -1627,25 +1677,43 @@ export function SpaceMissions({
                         </span>
                       ))}
                     </div>
-                    <button
-                      type="button"
-                      data-ocid="missions.primary_button"
-                      onClick={() => handleSelectMission(m)}
-                      style={{
-                        background: "rgba(246,195,91,0.12)",
-                        border: "1px solid rgba(246,195,91,0.35)",
-                        borderRadius: 8,
-                        color: "#F6C35B",
-                        padding: "7px 16px",
-                        cursor: "pointer",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.06em",
-                        fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
-                      }}
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 10 }}
                     >
-                      🚀 Start Mission
-                    </button>
+                      <button
+                        type="button"
+                        data-ocid="missions.primary_button"
+                        disabled={launching === m.id}
+                        onClick={() => handleSelectMission(m)}
+                        style={{
+                          background: "rgba(246,195,91,0.12)",
+                          border: "1px solid rgba(246,195,91,0.35)",
+                          borderRadius: 8,
+                          color: "#F6C35B",
+                          padding: "7px 16px",
+                          cursor: launching === m.id ? "wait" : "pointer",
+                          fontSize: 11,
+                          fontWeight: 700,
+                          letterSpacing: "0.06em",
+                          fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
+                          opacity: novaCredits < MISSION_COST ? 0.6 : 1,
+                        }}
+                      >
+                        {launching === m.id
+                          ? "Launching..."
+                          : "🚀 Start Mission"}
+                      </button>
+                      <span
+                        style={{
+                          color: "#F6C35B",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          opacity: 0.7,
+                        }}
+                      >
+                        ✦ {MISSION_COST} Credits
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}

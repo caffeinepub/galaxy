@@ -1,8 +1,8 @@
 import Iter "mo:core/Iter";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Text "mo:core/Text";
 import List "mo:core/List";
-import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
@@ -12,15 +12,12 @@ import OutCall "http-outcalls/outcall";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 
-
-
-
 actor {
   // Prefabricated module for RBAC
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // User profile type
+  // User profile types
   public type UserRole = { #admin; #user; #guest };
   public type UserProfile = {
     name : Text;
@@ -57,7 +54,56 @@ actor {
     totalAmount : Nat;
   };
 
-  // Stripe configuration
+  // Nova Credits
+  public type CreditTransaction = {
+    amount : Nat;
+    timestamp : Time.Time;
+    description : Text;
+  };
+
+  public type PurchaseRequestStatus = {
+    #pending;
+    #approved;
+    #rejected;
+  };
+
+  public type PurchaseRequest = {
+    id : Nat;
+    user : Principal;
+    transactionHash : Text;
+    cryptoType : Text;
+    creditsRequested : Nat;
+    status : PurchaseRequestStatus;
+    timestamp : Time.Time;
+  };
+
+  public type LoginRecord = {
+    user : Principal;
+    timestamp : Time.Time;
+  };
+
+  public type AdminStats = {
+    totalUsers : Nat;
+    totalLoginsToday : Nat;
+    totalNovaCredits : Nat;
+    pendingPurchases : Nat;
+    totalDonations : Nat;
+  };
+
+  // NFT Waitlist
+  public type NFTWaitlistEntry = {
+    user : Principal;
+    name : Text;
+    walletAddress : Text;
+    timestamp : Time.Time;
+  };
+
+  // HTTP outcalls transform
+  public query ({ caller }) func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
+    OutCall.transform(input);
+  };
+
+  // Retained for stable variable compatibility with previous deployment (Stripe was removed from UI)
   var stripeConfiguration : ?Stripe.StripeConfiguration = null;
 
   // State variables
@@ -67,42 +113,12 @@ actor {
   let starRegistry = List.empty<Star>();
   let planetJournals = List.empty<PlanetJournal>();
 
-  // Stripe
-  public query func isStripeConfigured() : async Bool {
-    stripeConfiguration != null;
-  };
-
-  public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can set Stripe configuration");
-    };
-    stripeConfiguration := ?config;
-  };
-
-  public query ({ caller }) func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
-    OutCall.transform(input);
-  };
-
-  func getStripeConfiguration() : Stripe.StripeConfiguration {
-    switch (stripeConfiguration) {
-      case (null) { Runtime.trap("Stripe needs to be first configured") };
-      case (?value) { value };
-    };
-  };
-
-  public shared ({ caller }) func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can check session status");
-    };
-    await Stripe.getSessionStatus(getStripeConfiguration(), sessionId, transform);
-  };
-
-  public shared ({ caller }) func createCheckoutSession(items : [Stripe.ShoppingItem], successUrl : Text, cancelUrl : Text) : async Text {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can create checkout sessions");
-    };
-    await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
-  };
+  // Nova Credits
+  let userCredits = Map.empty<Principal, Nat>();
+  let creditTransactions = List.empty<CreditTransaction>();
+  let purchaseRequests = List.empty<PurchaseRequest>();
+  let loginActivity = List.empty<LoginRecord>();
+  let nftWaitlist = List.empty<NFTWaitlistEntry>();
 
   // User Management
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -212,7 +228,6 @@ actor {
   public query func getTopDonors() : async [DonorAggregate] {
     let donorTotals = Map.empty<Principal, Nat>();
 
-    // Aggregate donations per donor
     for (donation in donations.values()) {
       switch (donorTotals.get(donation.donor)) {
         case (?currentTotal) {
@@ -224,20 +239,17 @@ actor {
       };
     };
 
-    // Convert to array
     let donorAggregates = List.empty<DonorAggregate>();
     for ((donor, total) in donorTotals.entries()) {
       donorAggregates.add({ principal = donor; totalAmount = total });
     };
 
-    // Sort by totalAmount in descending order (highest first)
     let sortedAggregates = donorAggregates.toArray().sort(
       func(a, b) {
         Nat.compare(b.totalAmount, a.totalAmount);
       }
     );
 
-    // Take top 10 donors
     let totalDonors = sortedAggregates.size();
     if (totalDonors <= 10) {
       sortedAggregates;
@@ -260,5 +272,240 @@ actor {
       };
     };
     false;
+  };
+
+  // Nova Credits
+  public shared ({ caller }) func getBalance() : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can get their balance");
+    };
+    switch (userCredits.get(caller)) {
+      case (null) { 0 };
+      case (?balance) { balance };
+    };
+  };
+
+  public shared ({ caller }) func earnCredits(amount : Nat, description : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can earn credits");
+    };
+    let currentBalance = switch (userCredits.get(caller)) {
+      case (null) { 0 };
+      case (?balance) { balance };
+    };
+    userCredits.add(caller, currentBalance + amount);
+
+    let transaction : CreditTransaction = {
+      amount;
+      timestamp = Time.now();
+      description;
+    };
+    creditTransactions.add(transaction);
+  };
+
+  public shared ({ caller }) func spendCredits(amount : Nat) : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can spend credits");
+    };
+    let currentBalance = switch (userCredits.get(caller)) {
+      case (null) { 0 };
+      case (?balance) { balance };
+    };
+
+    if (currentBalance < amount) {
+      false;
+    } else {
+      userCredits.add(caller, currentBalance - amount);
+
+      let transaction : CreditTransaction = {
+        amount;
+        timestamp = Time.now();
+        description = "Spent credits";
+      };
+      creditTransactions.add(transaction);
+      true;
+    };
+  };
+
+  public shared ({ caller }) func submitPurchaseRequest(transactionHash : Text, cryptoType : Text, creditsRequested : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit purchase requests");
+    };
+    let requestId = purchaseRequests.size();
+    let request : PurchaseRequest = {
+      id = requestId;
+      user = caller;
+      transactionHash;
+      cryptoType;
+      creditsRequested;
+      status = #pending;
+      timestamp = Time.now();
+    };
+    purchaseRequests.add(request);
+  };
+
+  public query ({ caller }) func getUserPurchaseRequests() : async [PurchaseRequest] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can get their purchase requests");
+    };
+    let userRequests = List.empty<PurchaseRequest>();
+    for (request in purchaseRequests.values()) {
+      if (request.user == caller) {
+        userRequests.add(request);
+      };
+    };
+    userRequests.toArray();
+  };
+
+  public query ({ caller }) func getAllPurchaseRequests() : async [PurchaseRequest] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can get all purchase requests");
+    };
+    purchaseRequests.toArray();
+  };
+
+  public shared ({ caller }) func approvePurchaseRequest(requestId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can approve purchase requests");
+    };
+    let updatedRequests = List.empty<PurchaseRequest>();
+
+    for (request in purchaseRequests.values()) {
+      if (request.id == requestId) {
+        let updatedRequest = {
+          request with
+          status = #approved;
+        };
+        updatedRequests.add(updatedRequest);
+
+        let currentBalance = switch (userCredits.get(request.user)) {
+          case (null) { 0 };
+          case (?balance) { balance };
+        };
+        userCredits.add(request.user, currentBalance + request.creditsRequested);
+      } else {
+        updatedRequests.add(request);
+      };
+    };
+
+    purchaseRequests.clear();
+    for (request in updatedRequests.values()) {
+      purchaseRequests.add(request);
+    };
+  };
+
+  public shared ({ caller }) func rejectPurchaseRequest(requestId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can reject purchase requests");
+    };
+    let updatedRequests = List.empty<PurchaseRequest>();
+
+    for (request in purchaseRequests.values()) {
+      if (request.id == requestId) {
+        let updatedRequest = {
+          request with
+          status = #rejected;
+        };
+        updatedRequests.add(updatedRequest);
+      } else {
+        updatedRequests.add(request);
+      };
+    };
+
+    purchaseRequests.clear();
+    for (request in updatedRequests.values()) {
+      purchaseRequests.add(request);
+    };
+  };
+
+  // Login tracking
+  public shared ({ caller }) func recordLogin() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can record login");
+    };
+    let record : LoginRecord = {
+      user = caller;
+      timestamp = Time.now();
+    };
+    loginActivity.add(record);
+  };
+
+  public query func getTodayLoginCount() : async Nat {
+    let now = Time.now();
+    let todayStart = now - (now % 86_400_000_000_000);
+
+    var count = 0;
+    for (record in loginActivity.values()) {
+      if (record.timestamp >= todayStart) {
+        count += 1;
+      };
+    };
+    count;
+  };
+
+  public query ({ caller }) func getLoginActivity() : async [LoginRecord] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can get login activity");
+    };
+    loginActivity.toArray();
+  };
+
+  public query ({ caller }) func getAdminStats() : async AdminStats {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can get stats");
+    };
+
+    let totalUsers = userProfiles.size();
+    let now = Time.now();
+    let todayStart = now - (now % 86_400_000_000_000);
+
+    var totalLoginsToday = 0;
+    for (record in loginActivity.values()) {
+      if (record.timestamp >= todayStart) {
+        totalLoginsToday += 1;
+      };
+    };
+
+    var totalNovaCredits = 0;
+    let entries = userCredits.entries();
+    for ((_, balance) in entries) {
+      totalNovaCredits += balance;
+    };
+
+    var pendingPurchases = 0;
+    for (request in purchaseRequests.values()) {
+      if (request.status == #pending) {
+        pendingPurchases += 1;
+      };
+    };
+
+    {
+      totalUsers;
+      totalLoginsToday;
+      totalNovaCredits;
+      pendingPurchases;
+      totalDonations;
+    };
+  };
+
+  // NFT Waitlist
+  public shared ({ caller }) func submitNFTWaitlist(name : Text, walletAddress : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can join the waitlist");
+    };
+    let entry : NFTWaitlistEntry = {
+      user = caller;
+      name;
+      walletAddress;
+      timestamp = Time.now();
+    };
+    nftWaitlist.add(entry);
+  };
+
+  public query ({ caller }) func getNFTWaitlist() : async [NFTWaitlistEntry] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view the NFT waitlist");
+    };
+    nftWaitlist.toArray();
   };
 };

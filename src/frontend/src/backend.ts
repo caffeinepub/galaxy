@@ -116,6 +116,15 @@ export interface http_request_result {
     body: Uint8Array;
     headers: Array<http_header>;
 }
+export interface PurchaseRequest {
+    id: bigint;
+    status: PurchaseRequestStatus;
+    cryptoType: string;
+    transactionHash: string;
+    user: Principal;
+    timestamp: Time;
+    creditsRequested: bigint;
+}
 export interface Donation {
     message: string;
     timestamp: Time;
@@ -129,9 +138,20 @@ export interface ShoppingItem {
     priceInCents: bigint;
     productDescription: string;
 }
+export interface AdminStats {
+    totalNovaCredits: bigint;
+    totalUsers: bigint;
+    totalLoginsToday: bigint;
+    totalDonations: bigint;
+    pendingPurchases: bigint;
+}
 export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
+}
+export interface LoginRecord {
+    user: Principal;
+    timestamp: Time;
 }
 export type StripeSessionStatus = {
     __kind__: "completed";
@@ -149,14 +169,19 @@ export interface StripeConfiguration {
     allowedCountries: Array<string>;
     secretKey: string;
 }
-export interface DonorAggregate {
-    principal: Principal;
-    totalAmount: bigint;
-}
 export interface UserProfile {
     favoritePlanet?: string;
     name: string;
     role: UserRole;
+}
+export interface DonorAggregate {
+    principal: Principal;
+    totalAmount: bigint;
+}
+export enum PurchaseRequestStatus {
+    pending = "pending",
+    approved = "approved",
+    rejected = "rejected"
 }
 export enum UserRole {
     admin = "admin",
@@ -165,29 +190,40 @@ export enum UserRole {
 }
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    approvePurchaseRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
+    earnCredits(amount: bigint): Promise<void>;
+    getAdminStats(): Promise<AdminStats>;
     getAllStars(): Promise<Array<Star>>;
+    getBalance(): Promise<bigint>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getDonations(): Promise<Array<Donation>>;
     getJournalEntriesForPlanet(planetName: string): Promise<Array<PlanetJournal>>;
+    getLoginActivity(): Promise<Array<LoginRecord>>;
     getStarsByOwner(owner: Principal): Promise<Array<Star>>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
+    getTodayLoginCount(): Promise<bigint>;
     getTopDonors(): Promise<Array<DonorAggregate>>;
     getTotalDonations(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getUserPurchaseRequests(): Promise<Array<PurchaseRequest>>;
     isCallerAdmin(): Promise<boolean>;
     isPremiumUser(user: Principal): Promise<boolean>;
     isStripeConfigured(): Promise<boolean>;
     recordDonation(amount: bigint, message: string): Promise<void>;
+    recordLogin(): Promise<void>;
+    rejectPurchaseRequest(requestId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
+    spendCredits(amount: bigint): Promise<boolean>;
     submitJournalEntry(planetName: string, entry: string): Promise<void>;
+    submitPurchaseRequest(transactionHash: string, cryptoType: string, creditsRequested: bigint): Promise<void>;
     submitStar(name: string, message: string): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;
 }
-import type { StripeSessionStatus as _StripeSessionStatus, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
+import type { PurchaseRequest as _PurchaseRequest, PurchaseRequestStatus as _PurchaseRequestStatus, StripeSessionStatus as _StripeSessionStatus, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
@@ -201,6 +237,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor._initializeAccessControlWithSecret(arg0);
+            return result;
+        }
+    }
+    async approvePurchaseRequest(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.approvePurchaseRequest(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.approvePurchaseRequest(arg0);
             return result;
         }
     }
@@ -232,6 +282,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async earnCredits(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.earnCredits(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.earnCredits(arg0);
+            return result;
+        }
+    }
+    async getAdminStats(): Promise<AdminStats> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAdminStats();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAdminStats();
+            return result;
+        }
+    }
     async getAllStars(): Promise<Array<Star>> {
         if (this.processError) {
             try {
@@ -243,6 +321,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getAllStars();
+            return result;
+        }
+    }
+    async getBalance(): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getBalance();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getBalance();
             return result;
         }
     }
@@ -302,6 +394,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getLoginActivity(): Promise<Array<LoginRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getLoginActivity();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getLoginActivity();
+            return result;
+        }
+    }
     async getStarsByOwner(arg0: Principal): Promise<Array<Star>> {
         if (this.processError) {
             try {
@@ -328,6 +434,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getStripeSessionStatus(arg0);
             return from_candid_StripeSessionStatus_n9(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getTodayLoginCount(): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getTodayLoginCount();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getTodayLoginCount();
+            return result;
         }
     }
     async getTopDonors(): Promise<Array<DonorAggregate>> {
@@ -370,6 +490,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getUserProfile(arg0);
             return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getUserPurchaseRequests(): Promise<Array<PurchaseRequest>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getUserPurchaseRequests();
+                return from_candid_vec_n12(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getUserPurchaseRequests();
+            return from_candid_vec_n12(this._uploadFile, this._downloadFile, result);
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -428,17 +562,45 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
+    async recordLogin(): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n12(this._uploadFile, this._downloadFile, arg0));
+                const result = await this.actor.recordLogin();
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n12(this._uploadFile, this._downloadFile, arg0));
+            const result = await this.actor.recordLogin();
+            return result;
+        }
+    }
+    async rejectPurchaseRequest(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.rejectPurchaseRequest(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.rejectPurchaseRequest(arg0);
+            return result;
+        }
+    }
+    async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n17(this._uploadFile, this._downloadFile, arg0));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveCallerUserProfile(to_candid_UserProfile_n17(this._uploadFile, this._downloadFile, arg0));
             return result;
         }
     }
@@ -456,6 +618,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async spendCredits(arg0: bigint): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.spendCredits(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.spendCredits(arg0);
+            return result;
+        }
+    }
     async submitJournalEntry(arg0: string, arg1: string): Promise<void> {
         if (this.processError) {
             try {
@@ -467,6 +643,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.submitJournalEntry(arg0, arg1);
+            return result;
+        }
+    }
+    async submitPurchaseRequest(arg0: string, arg1: string, arg2: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.submitPurchaseRequest(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.submitPurchaseRequest(arg0, arg1, arg2);
             return result;
         }
     }
@@ -499,6 +689,12 @@ export class Backend implements backendInterface {
         }
     }
 }
+function from_candid_PurchaseRequestStatus_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _PurchaseRequestStatus): PurchaseRequestStatus {
+    return from_candid_variant_n16(_uploadFile, _downloadFile, value);
+}
+function from_candid_PurchaseRequest_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _PurchaseRequest): PurchaseRequest {
+    return from_candid_record_n14(_uploadFile, _downloadFile, value);
+}
 function from_candid_StripeSessionStatus_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _StripeSessionStatus): StripeSessionStatus {
     return from_candid_variant_n10(_uploadFile, _downloadFile, value);
 }
@@ -524,6 +720,33 @@ function from_candid_record_n11(_uploadFile: (file: ExternalBlob) => Promise<Uin
     return {
         userPrincipal: record_opt_to_undefined(from_candid_opt_n6(_uploadFile, _downloadFile, value.userPrincipal)),
         response: value.response
+    };
+}
+function from_candid_record_n14(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    id: bigint;
+    status: _PurchaseRequestStatus;
+    cryptoType: string;
+    transactionHash: string;
+    user: Principal;
+    timestamp: _Time;
+    creditsRequested: bigint;
+}): {
+    id: bigint;
+    status: PurchaseRequestStatus;
+    cryptoType: string;
+    transactionHash: string;
+    user: Principal;
+    timestamp: Time;
+    creditsRequested: bigint;
+} {
+    return {
+        id: value.id,
+        status: from_candid_PurchaseRequestStatus_n15(_uploadFile, _downloadFile, value.status),
+        cryptoType: value.cryptoType,
+        transactionHash: value.transactionHash,
+        user: value.user,
+        timestamp: value.timestamp,
+        creditsRequested: value.creditsRequested
     };
 }
 function from_candid_record_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
@@ -570,6 +793,15 @@ function from_candid_variant_n10(_uploadFile: (file: ExternalBlob) => Promise<Ui
         failed: value.failed
     } : value;
 }
+function from_candid_variant_n16(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    pending: null;
+} | {
+    approved: null;
+} | {
+    rejected: null;
+}): PurchaseRequestStatus {
+    return "pending" in value ? PurchaseRequestStatus.pending : "approved" in value ? PurchaseRequestStatus.approved : "rejected" in value ? PurchaseRequestStatus.rejected : value;
+}
 function from_candid_variant_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
@@ -579,13 +811,16 @@ function from_candid_variant_n8(_uploadFile: (file: ExternalBlob) => Promise<Uin
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function to_candid_UserProfile_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
-    return to_candid_record_n13(_uploadFile, _downloadFile, value);
+function from_candid_vec_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_PurchaseRequest>): Array<PurchaseRequest> {
+    return value.map((x)=>from_candid_PurchaseRequest_n13(_uploadFile, _downloadFile, x));
+}
+function to_candid_UserProfile_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserProfile): _UserProfile {
+    return to_candid_record_n18(_uploadFile, _downloadFile, value);
 }
 function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
     return to_candid_variant_n2(_uploadFile, _downloadFile, value);
 }
-function to_candid_record_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function to_candid_record_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     favoritePlanet?: string;
     name: string;
     role: UserRole;
