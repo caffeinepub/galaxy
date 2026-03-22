@@ -1,56 +1,44 @@
 import List "mo:core/List";
 import Map "mo:core/Map";
+import Nat "mo:core/Nat";
 import Principal "mo:core/Principal";
-import Time "mo:core/Time";
 
 module {
-  type OldUserProfile = {
-    name : Text;
-    favoritePlanet : ?Text;
-    role : { #admin; #user; #guest };
-  };
-
-  type OldDonation = {
-    amount : Nat;
-    donor : Principal.Principal;
-    message : Text;
-    timestamp : Time.Time;
-  };
-
   type OldActor = {
-    userProfiles : Map.Map<Principal.Principal, OldUserProfile>;
+    userProfiles : Map.Map<Principal, { name : Text; favoritePlanet : ?Text; role : { #admin; #user; #guest } }>;
     totalDonations : Nat;
-    donations : List.List<OldDonation>;
-  };
-
-  type NewUserProfile = OldUserProfile;
-  type NewDonation = OldDonation;
-  type Star = {
-    name : Text;
-    owner : Principal.Principal;
-    message : Text;
-    timestamp : Time.Time;
-  };
-  type PlanetJournal = {
-    planetName : Text;
-    author : Principal.Principal;
-    entry : Text;
-    timestamp : Time.Time;
+    donations : List.List<{ amount : Nat; donor : Principal; message : Text; timestamp : Int }>;
+    starRegistry : List.List<{ name : Text; owner : Principal; message : Text; timestamp : Int }>;
+    planetJournals : List.List<{ planetName : Text; author : Principal; entry : Text; timestamp : Int }>;
+    userCredits : Map.Map<Principal, Nat>;
+    creditTransactions : List.List<{ amount : Nat; timestamp : Int; description : Text }>;
+    purchaseRequests : List.List<{ id : Nat; user : Principal; transactionHash : Text; cryptoType : Text; creditsRequested : Nat; status : { #pending; #approved; #rejected }; timestamp : Int }>;
+    loginActivity : List.List<{ user : Principal; timestamp : Int }>;
+    nftWaitlist : List.List<{ user : Principal; name : Text; walletAddress : Text; timestamp : Int }>;
+    stripeConfiguration : ?{ secretKey : Text; allowedCountries : [Text] };
   };
 
   type NewActor = {
-    userProfiles : Map.Map<Principal.Principal, NewUserProfile>;
+    userProfiles : Map.Map<Principal, { name : Text; favoritePlanet : ?Text; role : { #admin; #user; #guest } }>;
     totalDonations : Nat;
-    donations : List.List<NewDonation>;
-    starRegistry : List.List<Star>;
-    planetJournals : List.List<PlanetJournal>;
+    donations : List.List<{ amount : Nat; donor : Principal; message : Text; timestamp : Int }>;
+    starRegistry : List.List<{ name : Text; owner : Principal; message : Text; timestamp : Int }>;
+    planetJournals : List.List<{ planetName : Text; author : Principal; entry : Text; timestamp : Int }>;
+    userCredits : Map.Map<Principal, Nat>;
+    creditTransactions : List.List<{ amount : Nat; timestamp : Int; description : Text }>;
+    purchaseRequests : List.List<{ id : Nat; user : Principal; transactionHash : Text; cryptoType : Text; creditsRequested : Nat; status : { #pending; #approved; #rejected }; timestamp : Int }>;
+    loginActivity : List.List<{ user : Principal; timestamp : Int }>;
+    nftWaitlist : List.List<{ user : Principal; name : Text; walletAddress : Text; timestamp : Int }>;
+    stripeConfiguration : ?{ secretKey : Text; allowedCountries : [Text] };
+    gameLeaderboard : Map.Map<Principal, Nat>;
+    adminClaimed : Bool;
   };
 
   public func run(old : OldActor) : NewActor {
     {
       old with
-      starRegistry = List.empty<Star>();
-      planetJournals = List.empty<PlanetJournal>();
+      gameLeaderboard = Map.empty<Principal, Nat>();
+      adminClaimed = false;
     };
   };
 };

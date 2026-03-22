@@ -51,6 +51,8 @@ type Tab = "stats" | "purchases";
 export function AdminDashboard({ isOpen, onClose }: Props) {
   const { actor } = useActor();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [hasAdmin, setHasAdmin] = useState<boolean | null>(null);
+  const [claiming, setClaiming] = useState(false);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [activity, setActivity] = useState<LoginRecord[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRequest[]>([]);
@@ -64,8 +66,12 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
     setLoading(true);
     setErrorMsg("");
     try {
-      const adminResult = await actor.isCallerAdmin();
+      const [adminResult, hasAdminResult] = await Promise.all([
+        actor.isCallerAdmin(),
+        actor.hasAdmin(),
+      ]);
       setIsAdmin(adminResult);
+      setHasAdmin(hasAdminResult);
       if (adminResult) {
         const [statsResult, activityResult, purchasesResult] =
           await Promise.all([
@@ -339,7 +345,120 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
                   </div>
                 )}
 
-                {isAdmin === false && (
+                {isAdmin === false && hasAdmin === false && (
+                  <div
+                    data-ocid="admin.claim_panel"
+                    style={{
+                      textAlign: "center",
+                      padding: "40px 24px",
+                      background: "rgba(255,184,0,0.04)",
+                      border: "1px solid rgba(255,184,0,0.25)",
+                      borderRadius: 4,
+                      position: "relative",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        backgroundImage:
+                          "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,245,255,0.015) 2px, rgba(0,245,255,0.015) 4px)",
+                        pointerEvents: "none",
+                      }}
+                    />
+                    <div style={{ fontSize: 40, marginBottom: 16 }}>🛡️</div>
+                    <div
+                      style={{
+                        color: "#FFB800",
+                        fontSize: 14,
+                        fontWeight: 800,
+                        letterSpacing: "0.15em",
+                        textTransform: "uppercase",
+                        marginBottom: 8,
+                        fontFamily: "'Courier New', monospace",
+                      }}
+                    >
+                      ADMIN SEAT UNCLAIMED
+                    </div>
+                    <div
+                      style={{
+                        color: "#5A8FA8",
+                        fontSize: 12,
+                        marginBottom: 8,
+                        lineHeight: 1.6,
+                        fontFamily: "'Courier New', monospace",
+                      }}
+                    >
+                      No administrator has been registered.
+                      <br />
+                      Your Internet Identity will be permanently bound as admin.
+                    </div>
+                    <div
+                      style={{
+                        color: "#FF3B3B",
+                        fontSize: 10,
+                        marginBottom: 20,
+                        letterSpacing: "0.1em",
+                        textTransform: "uppercase",
+                        fontFamily: "'Courier New', monospace",
+                      }}
+                    >
+                      ⚠ WARNING: THIS ACTION IS PERMANENT AND IRREVERSIBLE
+                    </div>
+                    <button
+                      type="button"
+                      data-ocid="admin.confirm_button"
+                      disabled={claiming}
+                      onClick={async () => {
+                        if (!actor) return;
+                        setClaiming(true);
+                        try {
+                          await actor.claimAdmin();
+                          toast.success(
+                            "Admin access claimed! Welcome, Commander.",
+                            {
+                              style: {
+                                background: "rgba(2,8,16,0.95)",
+                                border: "1px solid rgba(0,245,255,0.4)",
+                                color: "#00F5FF",
+                                fontFamily: "monospace",
+                              },
+                            },
+                          );
+                          await loadData();
+                        } catch {
+                          toast.error("Failed to claim admin access");
+                        } finally {
+                          setClaiming(false);
+                        }
+                      }}
+                      style={{
+                        background: claiming
+                          ? "rgba(255,184,0,0.1)"
+                          : "rgba(255,184,0,0.15)",
+                        border: "1px solid rgba(255,184,0,0.6)",
+                        borderRadius: 2,
+                        padding: "12px 28px",
+                        color: "#FFB800",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: claiming ? "not-allowed" : "pointer",
+                        letterSpacing: "0.15em",
+                        textTransform: "uppercase",
+                        fontFamily: "'Courier New', monospace",
+                        boxShadow: claiming
+                          ? "none"
+                          : "0 0 16px rgba(255,184,0,0.3)",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {claiming ? "CLAIMING..." : "▶ CLAIM ADMIN ACCESS"}
+                    </button>
+                  </div>
+                )}
+
+                {isAdmin === false && hasAdmin === true && (
                   <div
                     data-ocid="admin.error_state"
                     style={{ textAlign: "center", padding: "48px 0" }}
@@ -347,18 +466,26 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
                     <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
                     <div
                       style={{
-                        color: "#f87171",
-                        fontSize: 18,
-                        fontWeight: 700,
+                        color: "#FF3B3B",
+                        fontSize: 14,
+                        fontWeight: 800,
                         marginBottom: 8,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        fontFamily: "'Courier New', monospace",
                       }}
                     >
-                      Access Denied
+                      ACCESS DENIED
                     </div>
                     <div
-                      style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}
+                      style={{
+                        color: "#5A8FA8",
+                        fontSize: 12,
+                        fontFamily: "'Courier New', monospace",
+                      }}
                     >
-                      You do not have admin privileges.
+                      Admin seat is occupied. Only the registered admin may
+                      access this panel.
                     </div>
                   </div>
                 )}

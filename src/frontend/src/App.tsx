@@ -2105,7 +2105,11 @@ export default function App() {
           setNovaCredits((prev) => Math.max(0, prev - amount))
         }
       />
-      <Leaderboard open={leaderboardOpen} onOpenChange={setLeaderboardOpen} />
+      <Leaderboard
+        open={leaderboardOpen}
+        onOpenChange={setLeaderboardOpen}
+        isLoggedIn={isLoggedIn}
+      />
       {selectedPlanetName && (
         <PlanetJournal
           open={journalOpen}

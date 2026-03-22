@@ -1,31 +1,33 @@
+import Stripe "stripe/stripe";
 import Iter "mo:core/Iter";
+import List "mo:core/List";
+import Migration "migration";
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
-import Text "mo:core/Text";
-import List "mo:core/List";
+import OutCall "http-outcalls/outcall";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
+import Text "mo:core/Text";
 import Time "mo:core/Time";
-import Stripe "stripe/stripe";
-import OutCall "http-outcalls/outcall";
 
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 
+// Apply migration on upgrade
+(with migration = Migration.run)
 actor {
-  // Prefabricated module for RBAC
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // User profile types
   public type UserRole = { #admin; #user; #guest };
+  public type Score = Nat;
+
   public type UserProfile = {
     name : Text;
     favoritePlanet : ?Text;
     role : UserRole;
   };
 
-  // Donations
   public type Donation = {
     amount : Nat;
     donor : Principal;
@@ -33,7 +35,6 @@ actor {
     timestamp : Time.Time;
   };
 
-  // Star Registry
   public type Star = {
     name : Text;
     owner : Principal;
@@ -41,7 +42,6 @@ actor {
     timestamp : Time.Time;
   };
 
-  // Planet Journal
   public type PlanetJournal = {
     planetName : Text;
     author : Principal;
@@ -54,7 +54,6 @@ actor {
     totalAmount : Nat;
   };
 
-  // Nova Credits
   public type CreditTransaction = {
     amount : Nat;
     timestamp : Time.Time;
@@ -90,7 +89,6 @@ actor {
     totalDonations : Nat;
   };
 
-  // NFT Waitlist
   public type NFTWaitlistEntry = {
     user : Principal;
     name : Text;
@@ -98,27 +96,94 @@ actor {
     timestamp : Time.Time;
   };
 
-  // HTTP outcalls transform
   public query ({ caller }) func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
     OutCall.transform(input);
   };
 
-  // Retained for stable variable compatibility with previous deployment (Stripe was removed from UI)
+  // Stripe integration
   var stripeConfiguration : ?Stripe.StripeConfiguration = null;
 
-  // State variables
+  func getStripeConfiguration() : Stripe.StripeConfiguration {
+    switch (stripeConfiguration) {
+      case (null) { Runtime.trap("Stripe needs to be first configured") };
+      case (?value) { value };
+    };
+  };
+
+  public query func isStripeConfigured() : async Bool {
+    stripeConfiguration != null;
+  };
+
+  public shared ({ caller }) func setStripeConfiguration(config : Stripe.StripeConfiguration) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    stripeConfiguration := ?config;
+  };
+
+  public func getStripeSessionStatus(sessionId : Text) : async Stripe.StripeSessionStatus {
+    await Stripe.getSessionStatus(getStripeConfiguration(), sessionId, transform);
+  };
+
+  public shared ({ caller }) func createCheckoutSession(items : [Stripe.ShoppingItem], successUrl : Text, cancelUrl : Text) : async Text {
+    await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
+  };
+
+  // Other state variables and functions (unchanged from deployment 1)
   let userProfiles = Map.empty<Principal, UserProfile>();
   var totalDonations = 0;
   let donations = List.empty<Donation>();
   let starRegistry = List.empty<Star>();
   let planetJournals = List.empty<PlanetJournal>();
-
-  // Nova Credits
   let userCredits = Map.empty<Principal, Nat>();
   let creditTransactions = List.empty<CreditTransaction>();
   let purchaseRequests = List.empty<PurchaseRequest>();
   let loginActivity = List.empty<LoginRecord>();
   let nftWaitlist = List.empty<NFTWaitlistEntry>();
+  let outcallResults = List.empty<Text>();
+  var adminClaimed = false;
+
+  // Game Leaderboard
+  public type GameLeaderboardEntry = {
+    principal : Principal;
+    totalGameCredits : Nat;
+  };
+
+  let gameLeaderboard = Map.empty<Principal, Nat>();
+
+  public shared ({ caller }) func recordGameCreditsEarned(amount : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can record game credits");
+    };
+    let currentTotal = switch (gameLeaderboard.get(caller)) {
+      case (null) { 0 };
+      case (?total) { total };
+    };
+    gameLeaderboard.add(caller, currentTotal + amount);
+  };
+
+  public query func getGameLeaderboard() : async [GameLeaderboardEntry] {
+    let entries = List.empty<GameLeaderboardEntry>();
+    for ((principal, total) in gameLeaderboard.entries()) {
+      if (total > 0) {
+        entries.add({
+          principal;
+          totalGameCredits = total;
+        });
+      };
+    };
+    let entriesArray = entries.toArray();
+    if (entriesArray.size() <= 20) {
+      entriesArray;
+    } else {
+      let sortedEntries = entriesArray.sort(
+        func(a, b) {
+          Nat.compare(b.totalGameCredits, a.totalGameCredits);
+        }
+      );
+      sortedEntries.sliceToArray(0, 20);
+    };
+  };
 
   // User Management
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -507,5 +572,18 @@ actor {
       Runtime.trap("Unauthorized: Only admins can view the NFT waitlist");
     };
     nftWaitlist.toArray();
+  };
+
+  // Admin claim
+  public query func hasAdmin() : async Bool {
+    adminClaimed;
+  };
+
+  public shared ({ caller }) func claimAdmin() : async () {
+    if (adminClaimed) {
+      Runtime.trap("Admin already claimed");
+    };
+    AccessControl.assignRole(accessControlState, caller, caller, #admin);
+    adminClaimed := true;
   };
 };

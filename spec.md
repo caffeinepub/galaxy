@@ -1,37 +1,39 @@
 # Multi-verse of Madness
 
 ## Current State
-Full-stack 3D space simulation with Internet Identity login, Nova Credits economy, Space Missions, Multiverse, Black Hole, Daily Tasks, Admin Dashboard, and crypto monetization. Menu has ~20 items. Credits stored in backend via actor.
+- Full 3D solar system simulation with 8 planets, Multiverse, Black Hole, Space Missions
+- Nova Credits economy: earn via tasks/missions, buy with crypto, spend on features
+- 5 arcade mini-games (Asteroid Miner, Gravity Escape, Planet Terraformer, Wormhole Racer, Space Defender)
+- Admin dashboard with stats and purchase approval (access-controlled via authorization component)
+- Leaderboard currently shows top DONORS only (by ICP donated)
+- Admin access: `isCallerAdmin()` exists but no way to claim admin role via UI; user cannot access admin panel
+- UI: generic dark panels without distinct Sci-fi HUD aesthetic
 
 ## Requested Changes (Diff)
 
 ### Add
-- Game Arcade modal accessible from a new menu item `🎮 Game Arcade`
-- 5 fully playable Canvas-based mini-games:
-  1. **Asteroid Miner** -- pilot ship, blast asteroids, collect minerals, dodge debris. WASD/arrow controls + spacebar to shoot.
-  2. **Gravity Escape** -- escape Sagittarius A* gravitational pull using thruster bursts before time runs out. Mouse/touch controls.
-  3. **Planet Terraformer** -- slider-based puzzle: balance oxygen, temperature, water to terraform a planet. Turn-based, each planet unique.
-  4. **Wormhole Racer** -- tunnel runner, dodge energy walls moving at increasing speed. Arrow keys / tap.
-  5. **Space Defender** -- fixed cannon at bottom, shoot waves of descending alien ships. Arrow + spacebar.
-- Each game has: Nova Credits entry fee (10-25 credits), score tracking, reward payout on good performance, high score display
-- Game Arcade lobby screen showing all 5 games with cover art, entry fee, best score, and play button
-- Backend: store high scores per user per game; global leaderboard per game
-- New state variable `arcadeOpen` + setter in App.tsx
+- Global game leaderboard: tracks Nova Credits earned from arcade games per user, ranked by highest earnings, visible to all logged-in users
+- Backend: `getGameLeaderboard()` query returning top players by game credits earned
+- Backend: `claimAdmin()` shared function — only works if zero admins currently exist; promotes caller to admin role
+- Backend: `hasAdmin()` query — returns bool indicating if any admin has been claimed yet
+- Backend: `recordGameCreditsEarned(amount)` — tracks cumulative game earnings per user for leaderboard
+- Frontend: "Claim Admin" button in menu, visible only when logged in AND no admin exists yet
+- Frontend: Leaderboard modal redesigned to show game credits leaderboard (separate from donor leaderboard)
+- Frontend: Sci-fi HUD UI overhaul across all modals, menus, and panels
 
 ### Modify
-- App.tsx: add `arcadeOpen` state, add `🎮 Game Arcade` menu item, render `<GameArcade>` modal
-- Backend: add `submitGameScore`, `getHighScores`, `getMyScore` functions
+- Leaderboard component: switch data source from `getTopDonors` to `getGameLeaderboard`, rank by Nova Credits earned from games
+- AdminDashboard: add prompt/button for admin claim when `isAdmin === false` and no admin exists
+- GameArcade: call `recordGameCreditsEarned` after each game session to update backend leaderboard
+- All major modal components: apply Sci-fi HUD styling (neon borders, grid lines, monospace fonts, scanline effects, sharp edges)
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Update Motoko backend with game score storage and retrieval
-2. Create `GameArcade.tsx` -- lobby with 5 game cards
-3. Create `games/AsteroidMiner.tsx` -- Canvas 2D game
-4. Create `games/GravityEscape.tsx` -- Canvas 2D game
-5. Create `games/PlanetTerraformer.tsx` -- UI puzzle game
-6. Create `games/WormholeRacer.tsx` -- Canvas 2D tunnel runner
-7. Create `games/SpaceDefender.tsx` -- Canvas 2D shooter
-8. Wire into App.tsx menu and modal rendering
-9. Integrate Nova Credits spend/earn flow per game
+1. Add `gameCreditsEarned` map to backend, `recordGameCreditsEarned`, `getGameLeaderboard`, `claimAdmin`, `hasAdmin` functions
+2. Regenerate backend bindings
+3. Update Leaderboard.tsx to use game credits leaderboard data
+4. Add "Claim Admin" flow to AdminDashboard and App menu
+5. Update GameArcade to call recordGameCreditsEarned on game over
+6. Apply Sci-fi HUD visual overhaul to: App.tsx menu, Leaderboard, AdminDashboard, GameArcade, CreditShop, SpaceMissions modals

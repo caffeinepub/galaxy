@@ -27,7 +27,17 @@ export interface DonorAggregate {
   'principal' : Principal,
   'totalAmount' : bigint,
 }
+export interface GameLeaderboardEntry {
+  'principal' : Principal,
+  'totalGameCredits' : bigint,
+}
 export interface LoginRecord { 'user' : Principal, 'timestamp' : Time }
+export interface NFTWaitlistEntry {
+  'name' : string,
+  'user' : Principal,
+  'walletAddress' : string,
+  'timestamp' : Time,
+}
 export interface PlanetJournal {
   'planetName' : string,
   'entry' : string,
@@ -95,19 +105,23 @@ export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'approvePurchaseRequest' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'claimAdmin' : ActorMethod<[], undefined>,
   'createCheckoutSession' : ActorMethod<
     [Array<ShoppingItem>, string, string],
     string
   >,
-  'earnCredits' : ActorMethod<[bigint], undefined>,
+  'earnCredits' : ActorMethod<[bigint, string], undefined>,
   'getAdminStats' : ActorMethod<[], AdminStats>,
+  'getAllPurchaseRequests' : ActorMethod<[], Array<PurchaseRequest>>,
   'getAllStars' : ActorMethod<[], Array<Star>>,
   'getBalance' : ActorMethod<[], bigint>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getDonations' : ActorMethod<[], Array<Donation>>,
+  'getGameLeaderboard' : ActorMethod<[], Array<GameLeaderboardEntry>>,
   'getJournalEntriesForPlanet' : ActorMethod<[string], Array<PlanetJournal>>,
   'getLoginActivity' : ActorMethod<[], Array<LoginRecord>>,
+  'getNFTWaitlist' : ActorMethod<[], Array<NFTWaitlistEntry>>,
   'getStarsByOwner' : ActorMethod<[Principal], Array<Star>>,
   'getStripeSessionStatus' : ActorMethod<[string], StripeSessionStatus>,
   'getTodayLoginCount' : ActorMethod<[], bigint>,
@@ -115,16 +129,19 @@ export interface _SERVICE {
   'getTotalDonations' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserPurchaseRequests' : ActorMethod<[], Array<PurchaseRequest>>,
+  'hasAdmin' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isPremiumUser' : ActorMethod<[Principal], boolean>,
   'isStripeConfigured' : ActorMethod<[], boolean>,
   'recordDonation' : ActorMethod<[bigint, string], undefined>,
+  'recordGameCreditsEarned' : ActorMethod<[bigint], undefined>,
   'recordLogin' : ActorMethod<[], undefined>,
   'rejectPurchaseRequest' : ActorMethod<[bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setStripeConfiguration' : ActorMethod<[StripeConfiguration], undefined>,
   'spendCredits' : ActorMethod<[bigint], boolean>,
   'submitJournalEntry' : ActorMethod<[string, string], undefined>,
+  'submitNFTWaitlist' : ActorMethod<[string, string], undefined>,
   'submitPurchaseRequest' : ActorMethod<[string, string, bigint], undefined>,
   'submitStar' : ActorMethod<[string, string], undefined>,
   'transform' : ActorMethod<[TransformationInput], TransformationOutput>,

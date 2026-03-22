@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import React from "react";
+import { useEffect, useState } from "react";
 
 interface Props {
   credits: number;
@@ -7,15 +7,21 @@ interface Props {
 }
 
 const RANK_COLORS: Record<string, string> = {
-  Cadet: "#94a3b8",
-  Explorer: "#34d399",
-  Commander: "#60a5fa",
+  Cadet: "#5A8FA8",
+  Explorer: "#39FF14",
+  Commander: "#00F5FF",
   Admiral: "#a78bfa",
-  Legend: "#F6C35B",
+  Legend: "#FFB800",
 };
 
 export function NovaCreditsDisplay({ credits, rank }: Props) {
-  const rankColor = RANK_COLORS[rank] ?? "#F6C35B";
+  const rankColor = RANK_COLORS[rank] ?? "#FFB800";
+  const [blink, setBlink] = useState(true);
+
+  useEffect(() => {
+    const t = setInterval(() => setBlink((b) => !b), 800);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <motion.div
@@ -30,32 +36,43 @@ export function NovaCreditsDisplay({ credits, rank }: Props) {
         transform: "translateX(-50%)",
         display: "flex",
         alignItems: "center",
-        gap: 10,
-        background: "rgba(11,16,23,0.85)",
-        border: "1px solid rgba(246,195,91,0.25)",
-        borderRadius: 9999,
-        padding: "6px 16px",
+        gap: 8,
+        background: "rgba(2,8,16,0.9)",
+        border: "1px solid rgba(0,245,255,0.35)",
+        borderRadius: 2,
+        padding: "6px 14px",
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         zIndex: 200,
         pointerEvents: "none",
-        fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
+        fontFamily: "'Courier New', 'JetBrains Mono', monospace",
+        boxShadow: "0 0 16px rgba(0,245,255,0.2)",
       }}
     >
-      <span style={{ fontSize: 16, lineHeight: 1 }}>✦</span>
       <span
         style={{
-          color: "#F6C35B",
-          fontSize: 13,
-          fontWeight: 700,
-          letterSpacing: "0.04em",
+          color: "#00F5FF",
+          fontSize: 10,
+          letterSpacing: "0.15em",
+          textTransform: "uppercase",
+          opacity: 0.7,
         }}
       >
-        {credits.toLocaleString()}
+        NC
       </span>
       <span
         style={{
-          color: "rgba(255,255,255,0.35)",
+          color: "#FFB800",
+          fontSize: 13,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+        }}
+      >
+        ✦ {credits.toLocaleString()}
+      </span>
+      <span
+        style={{
+          color: "rgba(0,245,255,0.25)",
           fontSize: 11,
         }}
       >
@@ -64,13 +81,24 @@ export function NovaCreditsDisplay({ credits, rank }: Props) {
       <span
         style={{
           color: rankColor,
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: 600,
-          letterSpacing: "0.08em",
+          letterSpacing: "0.12em",
           textTransform: "uppercase",
         }}
       >
         {rank}
+      </span>
+      <span
+        style={{
+          color: "#39FF14",
+          opacity: blink ? 1 : 0,
+          fontSize: 11,
+          transition: "opacity 0.1s",
+          marginLeft: 2,
+        }}
+      >
+        |
       </span>
     </motion.div>
   );

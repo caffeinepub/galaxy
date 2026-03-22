@@ -7,6 +7,10 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export interface GameLeaderboardEntry {
+    principal: Principal;
+    totalGameCredits: bigint;
+}
 export interface TransformationOutput {
     status: bigint;
     body: Uint8Array;
@@ -67,6 +71,12 @@ export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
 }
+export interface NFTWaitlistEntry {
+    name: string;
+    user: Principal;
+    walletAddress: string;
+    timestamp: Time;
+}
 export interface LoginRecord {
     user: Principal;
     timestamp: Time;
@@ -109,16 +119,20 @@ export enum UserRole {
 export interface backendInterface {
     approvePurchaseRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    claimAdmin(): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
-    earnCredits(amount: bigint): Promise<void>;
+    earnCredits(amount: bigint, description: string): Promise<void>;
     getAdminStats(): Promise<AdminStats>;
+    getAllPurchaseRequests(): Promise<Array<PurchaseRequest>>;
     getAllStars(): Promise<Array<Star>>;
     getBalance(): Promise<bigint>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getDonations(): Promise<Array<Donation>>;
+    getGameLeaderboard(): Promise<Array<GameLeaderboardEntry>>;
     getJournalEntriesForPlanet(planetName: string): Promise<Array<PlanetJournal>>;
     getLoginActivity(): Promise<Array<LoginRecord>>;
+    getNFTWaitlist(): Promise<Array<NFTWaitlistEntry>>;
     getStarsByOwner(owner: Principal): Promise<Array<Star>>;
     getStripeSessionStatus(sessionId: string): Promise<StripeSessionStatus>;
     getTodayLoginCount(): Promise<bigint>;
@@ -126,16 +140,19 @@ export interface backendInterface {
     getTotalDonations(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getUserPurchaseRequests(): Promise<Array<PurchaseRequest>>;
+    hasAdmin(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isPremiumUser(user: Principal): Promise<boolean>;
     isStripeConfigured(): Promise<boolean>;
     recordDonation(amount: bigint, message: string): Promise<void>;
+    recordGameCreditsEarned(amount: bigint): Promise<void>;
     recordLogin(): Promise<void>;
     rejectPurchaseRequest(requestId: bigint): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setStripeConfiguration(config: StripeConfiguration): Promise<void>;
     spendCredits(amount: bigint): Promise<boolean>;
     submitJournalEntry(planetName: string, entry: string): Promise<void>;
+    submitNFTWaitlist(name: string, walletAddress: string): Promise<void>;
     submitPurchaseRequest(transactionHash: string, cryptoType: string, creditsRequested: bigint): Promise<void>;
     submitStar(name: string, message: string): Promise<void>;
     transform(input: TransformationInput): Promise<TransformationOutput>;

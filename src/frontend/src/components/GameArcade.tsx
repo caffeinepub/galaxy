@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import React, { useState, useCallback } from "react";
+import { useActor } from "../hooks/useActor";
 import AsteroidMiner from "./games/AsteroidMiner";
 import GravityEscape from "./games/GravityEscape";
 import PlanetTerraformer from "./games/PlanetTerraformer";
@@ -155,18 +156,23 @@ export default function GameArcade({
     [isLoggedIn, novaCredits, onSpendCredits],
   );
 
+  const { actor } = useActor();
+
   const handleGameOver = useCallback(
     (gameId: string, score: number) => {
       const game = GAMES.find((g) => g.id === gameId)!;
       saveBestScore(game.storageKey, score);
       const reward = calcReward(score, MAX_SCORES[gameId], game.maxReward);
       onEarnCredits(reward);
+      if (actor && reward > 0) {
+        actor.recordGameCreditsEarned(BigInt(reward)).catch(() => {});
+      }
       setResultMsg(
         `Game over! Score: ${score} — You earned ⭐ ${reward} Nova Credits!`,
       );
       setActiveGame(null);
     },
-    [onEarnCredits],
+    [onEarnCredits, actor],
   );
 
   const activeGameConfig = GAMES.find((g) => g.id === activeGame);
