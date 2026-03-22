@@ -1,7 +1,7 @@
 import Stripe "stripe/stripe";
 import Iter "mo:core/Iter";
 import List "mo:core/List";
-import Migration "migration";
+
 import Map "mo:core/Map";
 import Nat "mo:core/Nat";
 import OutCall "http-outcalls/outcall";
@@ -14,7 +14,7 @@ import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 
 // Apply migration on upgrade
-(with migration = Migration.run)
+
 actor {
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);

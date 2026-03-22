@@ -1,39 +1,26 @@
 # Multi-verse of Madness
 
 ## Current State
-- Full 3D solar system simulation with 8 planets, Multiverse, Black Hole, Space Missions
-- Nova Credits economy: earn via tasks/missions, buy with crypto, spend on features
-- 5 arcade mini-games (Asteroid Miner, Gravity Escape, Planet Terraformer, Wormhole Racer, Space Defender)
-- Admin dashboard with stats and purchase approval (access-controlled via authorization component)
-- Leaderboard currently shows top DONORS only (by ICP donated)
-- Admin access: `isCallerAdmin()` exists but no way to claim admin role via UI; user cannot access admin panel
-- UI: generic dark panels without distinct Sci-fi HUD aesthetic
+The app loads directly into the solar system simulation (3D Three.js canvas with React). App.tsx renders the full solar system immediately on load. No intro sequence exists. The `InterstellarBlackHoleHero` component exists but is unused (was removed as first-page hero in v21).
 
 ## Requested Changes (Diff)
 
 ### Add
-- Global game leaderboard: tracks Nova Credits earned from arcade games per user, ranked by highest earnings, visible to all logged-in users
-- Backend: `getGameLeaderboard()` query returning top players by game credits earned
-- Backend: `claimAdmin()` shared function — only works if zero admins currently exist; promotes caller to admin role
-- Backend: `hasAdmin()` query — returns bool indicating if any admin has been claimed yet
-- Backend: `recordGameCreditsEarned(amount)` — tracks cumulative game earnings per user for leaderboard
-- Frontend: "Claim Admin" button in menu, visible only when logged in AND no admin exists yet
-- Frontend: Leaderboard modal redesigned to show game credits leaderboard (separate from donor leaderboard)
-- Frontend: Sci-fi HUD UI overhaul across all modals, menus, and panels
+- `WarpIntroSequence` component: a 6-second cinematic gravitational lens warp-in that plays before the solar system becomes interactive
+  - Phase 1 (0-2s): Pure black with subtle star particles fading in, deep sub-bass rumble building via Web Audio API
+  - Phase 2 (2-4s): Gravitational lens distortion effect using WebGL fragment shaders -- space tears open with chromatic aberration, light bending rings rippling outward, star streaking
+  - Phase 3 (4-6s): Bloom flash reveals the solar system behind the warp, camera pulls back from inside the wormhole
+  - Skippable by click/tap after 1 second
+  - Web Audio API synthesizes: sub-bass sine wave building in amplitude, sharp transient crack at warp tear, fade into silence (solar system ambient takes over)
+  - Uses CSS/canvas for the shader-like effects (chromatic aberration, lensing rings, star streaks) via requestAnimationFrame
+- State in App.tsx: `showIntro` (boolean, default true) -- when true renders `WarpIntroSequence`; on complete sets to false and shows solar system
 
 ### Modify
-- Leaderboard component: switch data source from `getTopDonors` to `getGameLeaderboard`, rank by Nova Credits earned from games
-- AdminDashboard: add prompt/button for admin claim when `isAdmin === false` and no admin exists
-- GameArcade: call `recordGameCreditsEarned` after each game session to update backend leaderboard
-- All major modal components: apply Sci-fi HUD styling (neon borders, grid lines, monospace fonts, scanline effects, sharp edges)
+- `App.tsx`: Add `showIntro` state, conditionally render `WarpIntroSequence` overlay before solar system Canvas
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Add `gameCreditsEarned` map to backend, `recordGameCreditsEarned`, `getGameLeaderboard`, `claimAdmin`, `hasAdmin` functions
-2. Regenerate backend bindings
-3. Update Leaderboard.tsx to use game credits leaderboard data
-4. Add "Claim Admin" flow to AdminDashboard and App menu
-5. Update GameArcade to call recordGameCreditsEarned on game over
-6. Apply Sci-fi HUD visual overhaul to: App.tsx menu, Leaderboard, AdminDashboard, GameArcade, CreditShop, SpaceMissions modals
+1. Create `src/frontend/src/components/WarpIntroSequence.tsx` with full Canvas 2D gravitational lens animation, chromatic aberration effect, star field, and Web Audio synthesis
+2. Add `showIntro` state to `App.tsx`, render `WarpIntroSequence` as overlay that fades out and calls `onComplete` when done

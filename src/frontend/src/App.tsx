@@ -62,6 +62,7 @@ import { PlanetSearch } from "./components/PlanetSearch";
 import { SpaceMissions } from "./components/SpaceMissions";
 import { SpaceTimeline } from "./components/SpaceTimeline";
 import { SurfaceView } from "./components/SurfaceView";
+import { WarpIntroSequence } from "./components/WarpIntroSequence";
 import { WormholeEffect } from "./components/WormholeEffect";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
@@ -1063,6 +1064,7 @@ export default function App() {
   const [dailyTasksOpen, setDailyTasksOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
   const [nftTeaserOpen, setNftTeaserOpen] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const [arcadeOpen, setArcadeOpen] = useState(false);
   const [novaCredits, setNovaCredits] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1365,6 +1367,9 @@ export default function App() {
       }}
       onMouseMove={resetTopBarTimer}
     >
+      {showIntro && (
+        <WarpIntroSequence onComplete={() => setShowIntro(false)} />
+      )}
       {/* 3D Canvas */}
       <ErrorBoundary>
         <Canvas
