@@ -1,4 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 interface SpaceDefenderProps {
   onGameOver: (score: number) => void;
@@ -30,6 +32,9 @@ interface Explosion {
 export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const isMobile = useIsMobile();
+  const touchKeysRef = useRef<Record<string, boolean>>({});
+
   const stateRef = useRef({
     playerX: 400,
     playerVX: 0,
@@ -42,7 +47,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
     keys: {} as Record<string, boolean>,
     shootCooldown: 0,
     gameOver: false,
-    waveTimer: 0,
     shields: [
       { x: 160, hp: 3 },
       { x: 400, hp: 3 },
@@ -55,13 +59,11 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
     s.aliens = [];
     const cols = Math.min(8 + wave, 12);
     const rows = Math.min(3 + Math.floor(wave / 2), 5);
-    // Cap total enemies at 20 per wave
     const maxEnemies = 20;
     const speed = 0.4 + wave * 0.1;
     let spawned = 0;
-    for (let r = 0; r < rows && spawned < maxEnemies; r++) {
-      for (let c = 0; c < cols && spawned < maxEnemies; c++) {
-        spawned++;
+    for (let r = 0; r < rows && spawned < maxEnemies; r++)
+      for (let c = 0; c < cols && spawned < maxEnemies; c++, spawned++)
         s.aliens.push({
           x: 60 + c * (680 / cols),
           y: 60 + r * 50,
@@ -71,8 +73,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
           shootTimer: Math.random() * 200,
           type: r % 3,
         });
-      }
-    }
   };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: spawnWave is stable
@@ -124,14 +124,12 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
       ctx.shadowColor = colors[type];
       ctx.shadowBlur = 8;
       if (type === 0) {
-        // crab
         ctx.fillRect(-10, -5, 20, 10);
         ctx.fillRect(-14, -2, 4, 7);
         ctx.fillRect(10, -2, 4, 7);
         ctx.fillRect(-6, -10, 4, 6);
         ctx.fillRect(2, -10, 4, 6);
       } else if (type === 1) {
-        // squid
         ctx.beginPath();
         ctx.arc(0, -4, 8, 0, Math.PI * 2);
         ctx.fill();
@@ -140,7 +138,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
         ctx.fillRect(4, 0, 4, 10);
         ctx.fillRect(8, 0, 4, 8);
       } else {
-        // saucer
         ctx.beginPath();
         ctx.ellipse(0, 0, 14, 6, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -159,26 +156,24 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
 
       ctx.fillStyle = "rgba(0,0,10,0.92)";
       ctx.fillRect(0, 0, W, H);
-
-      // stars
       ctx.fillStyle = "rgba(255,255,255,0.25)";
       for (let i = 0; i < 80; i++)
         ctx.fillRect((i * 137) % W, (i * 97) % H, 1, 1);
 
-      // player move
-      if (s.keys.ArrowLeft || s.keys.KeyA) s.playerVX -= 0.8 * dt;
-      if (s.keys.ArrowRight || s.keys.KeyD) s.playerVX += 0.8 * dt;
+      const allKeys = { ...s.keys, ...touchKeysRef.current };
+      if (allKeys.ArrowLeft || allKeys.KeyA || allKeys.TouchLeft)
+        s.playerVX -= 0.8 * dt;
+      if (allKeys.ArrowRight || allKeys.KeyD || allKeys.TouchRight)
+        s.playerVX += 0.8 * dt;
       s.playerVX *= 0.85;
       s.playerX = Math.max(20, Math.min(W - 20, s.playerX + s.playerVX * dt));
 
-      // player shoot
       s.shootCooldown = Math.max(0, s.shootCooldown - dt);
-      if (s.keys.Space && s.shootCooldown <= 0) {
+      if ((allKeys.Space || allKeys.TouchFire) && s.shootCooldown <= 0) {
         s.bullets.push({ x: s.playerX, y: H - 50, vy: -10, friendly: true });
         s.shootCooldown = 10;
       }
 
-      // alien movement direction bounce
       dirTimer += dt;
       if (dirTimer > 60) {
         dirTimer = 0;
@@ -194,7 +189,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
         }
       }
 
-      // aliens
       for (let i = s.aliens.length - 1; i >= 0; i--) {
         const a = s.aliens[i];
         a.x += moveDir * a.vx * dt;
@@ -216,7 +210,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
         drawAlien(ctx, a.x, a.y, a.type);
       }
 
-      // bullets
       for (let i = s.bullets.length - 1; i >= 0; i--) {
         const b = s.bullets[i];
         b.y += b.vy * dt;
@@ -224,9 +217,7 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
           s.bullets.splice(i, 1);
           continue;
         }
-
         if (b.friendly) {
-          // hit alien
           let hit = false;
           for (let j = s.aliens.length - 1; j >= 0; j--) {
             const a = s.aliens[j];
@@ -241,7 +232,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
               break;
             }
           }
-          // hit shield
           for (const sh of s.shields) {
             if (
               Math.abs(b.x - sh.x) < 20 &&
@@ -258,7 +248,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
             continue;
           }
         } else {
-          // hit player
           if (Math.abs(b.x - s.playerX) < 16 && Math.abs(b.y - (H - 42)) < 16) {
             s.lives--;
             s.explosions.push({
@@ -276,7 +265,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
             }
             continue;
           }
-          // hit shield
           let shieldHit = false;
           for (const sh of s.shields) {
             if (
@@ -294,7 +282,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
             continue;
           }
         }
-
         ctx.beginPath();
         ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
         ctx.fillStyle = b.friendly ? "#00FFFF" : "#FF3344";
@@ -304,7 +291,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
         ctx.shadowBlur = 0;
       }
 
-      // shields
       for (const sh of s.shields) {
         if (sh.hp <= 0) continue;
         ctx.fillStyle = `rgba(0,200,100,${sh.hp * 0.25})`;
@@ -317,7 +303,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
         ctx.strokeRect(sh.x - 22, H - 115, 44, 28);
       }
 
-      // explosions
       s.explosions = s.explosions.filter((e) => e.life > 0);
       for (const e of s.explosions) {
         e.r += 2 * dt;
@@ -334,7 +319,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
       }
       ctx.globalAlpha = 1;
 
-      // player ship
       ctx.save();
       ctx.translate(s.playerX, H - 42);
       ctx.fillStyle = "#44CCFF";
@@ -352,7 +336,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
       ctx.restore();
       ctx.shadowBlur = 0;
 
-      // ground line
       ctx.strokeStyle = "rgba(0,200,100,0.3)";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -360,7 +343,6 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
       ctx.lineTo(W, H - 20);
       ctx.stroke();
 
-      // HUD
       ctx.fillStyle = "#E0E8FF";
       ctx.font = "bold 14px 'Plus Jakarta Sans', monospace";
       ctx.fillText(`⭐ ${s.score}`, 14, 28);
@@ -371,12 +353,10 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
         ctx.fillText("♥", W - 30 - i * 22, 28);
       }
 
-      // wave clear
       if (s.aliens.length === 0) {
         s.wave++;
         spawnWave(s.wave);
       }
-
       rafRef.current = requestAnimationFrame(loop);
     }
 
@@ -387,6 +367,24 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
       window.removeEventListener("keyup", ku);
     };
   }, [onGameOver]);
+
+  const btnStyle: React.CSSProperties = {
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    background: "rgba(0,0,0,0.5)",
+    border: "2px solid rgba(0,200,100,0.5)",
+    color: "#00FF88",
+    fontSize: 22,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    touchAction: "none",
+    backdropFilter: "blur(6px)",
+  };
 
   return (
     <div
@@ -406,12 +404,77 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
           borderRadius: 8,
           boxShadow: "0 0 28px rgba(0,200,100,0.2)",
           maxWidth: "100%",
+          touchAction: "none",
         }}
       />
-      <p style={{ color: "#8899BB", fontSize: 12 }}>
-        ←/→ or A/D to move &nbsp;|&nbsp; Space to shoot &nbsp;|&nbsp; Survive
-        the alien waves!
-      </p>
+      {isMobile ? (
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <button
+            type="button"
+            style={btnStyle}
+            onTouchStart={() => {
+              touchKeysRef.current.TouchLeft = true;
+            }}
+            onTouchEnd={() => {
+              touchKeysRef.current.TouchLeft = false;
+            }}
+            onMouseDown={() => {
+              touchKeysRef.current.TouchLeft = true;
+            }}
+            onMouseUp={() => {
+              touchKeysRef.current.TouchLeft = false;
+            }}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            style={{
+              ...btnStyle,
+              width: 80,
+              border: "2px solid rgba(0,255,200,0.6)",
+              color: "#00FFCC",
+            }}
+            onTouchStart={() => {
+              touchKeysRef.current.TouchFire = true;
+            }}
+            onTouchEnd={() => {
+              touchKeysRef.current.TouchFire = false;
+            }}
+            onMouseDown={() => {
+              touchKeysRef.current.TouchFire = true;
+            }}
+            onMouseUp={() => {
+              touchKeysRef.current.TouchFire = false;
+            }}
+          >
+            🔫
+          </button>
+          <button
+            type="button"
+            style={btnStyle}
+            onTouchStart={() => {
+              touchKeysRef.current.TouchRight = true;
+            }}
+            onTouchEnd={() => {
+              touchKeysRef.current.TouchRight = false;
+            }}
+            onMouseDown={() => {
+              touchKeysRef.current.TouchRight = true;
+            }}
+            onMouseUp={() => {
+              touchKeysRef.current.TouchRight = false;
+            }}
+          >
+            ▶
+          </button>
+        </div>
+      ) : (
+        <p style={{ color: "#8899BB", fontSize: 12 }}>
+          ←/→ or A/D to move &nbsp;|&nbsp; Space to shoot &nbsp;|&nbsp; Survive
+          the alien waves!
+        </p>
+      )}
     </div>
   );
 }

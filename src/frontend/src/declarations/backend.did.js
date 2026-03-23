@@ -27,12 +27,17 @@ export const AdminStats = IDL.Record({
   'totalDonations' : IDL.Nat,
   'pendingPurchases' : IDL.Nat,
 });
+export const Time = IDL.Int;
+export const Planet = IDL.Record({
+  'planetName' : IDL.Text,
+  'owner' : IDL.Principal,
+  'claimedAt' : Time,
+});
 export const PurchaseRequestStatus = IDL.Variant({
   'pending' : IDL.Null,
   'approved' : IDL.Null,
   'rejected' : IDL.Null,
 });
-export const Time = IDL.Int;
 export const PurchaseRequest = IDL.Record({
   'id' : IDL.Nat,
   'status' : PurchaseRequestStatus,
@@ -52,6 +57,11 @@ export const UserProfile = IDL.Record({
   'favoritePlanet' : IDL.Opt(IDL.Text),
   'name' : IDL.Text,
   'role' : UserRole,
+});
+export const ConquestLeaderboardEntry = IDL.Record({
+  'principal' : IDL.Principal,
+  'timestamp' : Time,
+  'planetsOwned' : IDL.Nat,
 });
 export const Donation = IDL.Record({
   'message' : IDL.Text,
@@ -118,6 +128,7 @@ export const idlService = IDL.Service({
   'approvePurchaseRequest' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'claimAdmin' : IDL.Func([], [], []),
+  'claimPlanet' : IDL.Func([IDL.Text], [], []),
   'createCheckoutSession' : IDL.Func(
       [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
       [IDL.Text],
@@ -125,6 +136,7 @@ export const idlService = IDL.Service({
     ),
   'earnCredits' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
+  'getAllPlanets' : IDL.Func([], [IDL.Vec(Planet)], ['query']),
   'getAllPurchaseRequests' : IDL.Func(
       [],
       [IDL.Vec(PurchaseRequest)],
@@ -134,6 +146,11 @@ export const idlService = IDL.Service({
   'getBalance' : IDL.Func([], [IDL.Nat], []),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getConquestLeaderboard' : IDL.Func(
+      [],
+      [IDL.Vec(ConquestLeaderboardEntry)],
+      ['query'],
+    ),
   'getDonations' : IDL.Func([], [IDL.Vec(Donation)], ['query']),
   'getGameLeaderboard' : IDL.Func(
       [],
@@ -162,6 +179,7 @@ export const idlService = IDL.Service({
       [IDL.Vec(PurchaseRequest)],
       ['query'],
     ),
+  'getWeeklyConquestWinner' : IDL.Func([], [IDL.Principal], ['query']),
   'hasAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isPremiumUser' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
@@ -206,12 +224,17 @@ export const idlFactory = ({ IDL }) => {
     'totalDonations' : IDL.Nat,
     'pendingPurchases' : IDL.Nat,
   });
+  const Time = IDL.Int;
+  const Planet = IDL.Record({
+    'planetName' : IDL.Text,
+    'owner' : IDL.Principal,
+    'claimedAt' : Time,
+  });
   const PurchaseRequestStatus = IDL.Variant({
     'pending' : IDL.Null,
     'approved' : IDL.Null,
     'rejected' : IDL.Null,
   });
-  const Time = IDL.Int;
   const PurchaseRequest = IDL.Record({
     'id' : IDL.Nat,
     'status' : PurchaseRequestStatus,
@@ -231,6 +254,11 @@ export const idlFactory = ({ IDL }) => {
     'favoritePlanet' : IDL.Opt(IDL.Text),
     'name' : IDL.Text,
     'role' : UserRole,
+  });
+  const ConquestLeaderboardEntry = IDL.Record({
+    'principal' : IDL.Principal,
+    'timestamp' : Time,
+    'planetsOwned' : IDL.Nat,
   });
   const Donation = IDL.Record({
     'message' : IDL.Text,
@@ -294,6 +322,7 @@ export const idlFactory = ({ IDL }) => {
     'approvePurchaseRequest' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'claimAdmin' : IDL.Func([], [], []),
+    'claimPlanet' : IDL.Func([IDL.Text], [], []),
     'createCheckoutSession' : IDL.Func(
         [IDL.Vec(ShoppingItem), IDL.Text, IDL.Text],
         [IDL.Text],
@@ -301,6 +330,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'earnCredits' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'getAdminStats' : IDL.Func([], [AdminStats], ['query']),
+    'getAllPlanets' : IDL.Func([], [IDL.Vec(Planet)], ['query']),
     'getAllPurchaseRequests' : IDL.Func(
         [],
         [IDL.Vec(PurchaseRequest)],
@@ -310,6 +340,11 @@ export const idlFactory = ({ IDL }) => {
     'getBalance' : IDL.Func([], [IDL.Nat], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getConquestLeaderboard' : IDL.Func(
+        [],
+        [IDL.Vec(ConquestLeaderboardEntry)],
+        ['query'],
+      ),
     'getDonations' : IDL.Func([], [IDL.Vec(Donation)], ['query']),
     'getGameLeaderboard' : IDL.Func(
         [],
@@ -338,6 +373,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(PurchaseRequest)],
         ['query'],
       ),
+    'getWeeklyConquestWinner' : IDL.Func([], [IDL.Principal], ['query']),
     'hasAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isPremiumUser' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),

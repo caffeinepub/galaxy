@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 interface GravityEscapeProps {
   onGameOver: (score: number) => void;
@@ -7,6 +8,8 @@ interface GravityEscapeProps {
 export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const isMobile = useIsMobile();
+  const thrustRef = useRef(false);
   const stateRef = useRef({
     x: 400,
     y: 150,
@@ -45,10 +48,12 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
     s.angle = 0;
 
     const onClick = () => {
-      if (!s.gameOver) s.thrustHeld = true;
-      setTimeout(() => {
-        s.thrustHeld = false;
-      }, 200);
+      if (!s.gameOver) {
+        s.thrustHeld = true;
+        setTimeout(() => {
+          s.thrustHeld = false;
+        }, 200);
+      }
     };
     const kd = (e: KeyboardEvent) => {
       s.keys[e.code] = true;
@@ -68,7 +73,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       const dt = Math.min((now - lastTime) / 16, 3);
       lastTime = now;
       if (s.gameOver) return;
-
       s.time += dt / 60;
       diskAngle += 0.008 * dt;
 
@@ -76,13 +80,15 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       const dx = cx - s.x;
       const dy = cy - s.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const gx = (dx / dist) * gravity * dt;
-      const gy = (dy / dist) * gravity * dt;
-      s.vx += gx;
-      s.vy += gy;
+      s.vx += (dx / dist) * gravity * dt;
+      s.vy += (dy / dist) * gravity * dt;
 
       const thrusting =
-        s.thrustHeld || s.keys.Space || s.keys.ArrowUp || s.keys.KeyW;
+        s.thrustHeld ||
+        thrustRef.current ||
+        s.keys.Space ||
+        s.keys.ArrowUp ||
+        s.keys.KeyW;
       if (thrusting) {
         const awayX = -dx / dist;
         const awayY = -dy / dist;
@@ -106,14 +112,12 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       s.y += s.vy * dt;
       s.angle = Math.atan2(s.vy, s.vx);
 
-      // check event horizon
       const distToCenter = Math.sqrt((s.x - cx) ** 2 + (s.y - cy) ** 2);
       if (distToCenter < eventHorizonR + 8) {
         s.gameOver = true;
         onGameOver(Math.floor(s.time));
         return;
       }
-      // out of bounds
       if (s.x < 0 || s.x > W || s.y < 0 || s.y > H) {
         s.x = Math.max(10, Math.min(W - 10, s.x));
         s.y = Math.max(10, Math.min(H - 10, s.y));
@@ -121,17 +125,12 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
         s.vy *= -0.5;
       }
 
-      // ---- DRAW ----
       ctx.fillStyle = "#000008";
       ctx.fillRect(0, 0, W, H);
-
-      // stars
       ctx.fillStyle = "rgba(255,255,255,0.5)";
-      for (let i = 0; i < 120; i++) {
+      for (let i = 0; i < 120; i++)
         ctx.fillRect((i * 173.1 + 7) % W, (i * 97.7 + 13) % H, 1, 1);
-      }
 
-      // gravitational lensing rings
       for (let r = eventHorizonR + 6; r < 200; r += 18) {
         const alpha = 0.12 * (1 - (r - eventHorizonR) / 180);
         ctx.beginPath();
@@ -141,7 +140,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
         ctx.stroke();
       }
 
-      // accretion disk
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(diskAngle);
@@ -150,17 +148,15 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
         const r1 = eventHorizonR + 6;
         const r2 = eventHorizonR + 28;
         const bright = (Math.sin(a * 3 + diskAngle * 4) + 1) / 2;
-        const alpha = 0.6 + bright * 0.4;
         ctx.beginPath();
         ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
         ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
-        ctx.strokeStyle = `rgba(${200 + Math.floor(bright * 55)},${100 + Math.floor(bright * 80)},50,${alpha})`;
+        ctx.strokeStyle = `rgba(${200 + Math.floor(bright * 55)},${100 + Math.floor(bright * 80)},50,${0.6 + bright * 0.4})`;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
       ctx.restore();
 
-      // black hole core
       const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, eventHorizonR);
       grad.addColorStop(0, "#000000");
       grad.addColorStop(0.7, "#000000");
@@ -170,8 +166,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       ctx.arc(cx, cy, eventHorizonR, 0, Math.PI * 2);
       ctx.fillStyle = grad;
       ctx.fill();
-
-      // photon ring
       ctx.beginPath();
       ctx.arc(cx, cy, eventHorizonR, 0, Math.PI * 2);
       ctx.strokeStyle = "rgba(255,200,80,0.9)";
@@ -181,7 +175,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       ctx.stroke();
       ctx.shadowBlur = 0;
 
-      // particles
       s.particles = s.particles.filter((p) => p.life > 0);
       for (const p of s.particles) {
         p.x += p.vx * dt;
@@ -195,7 +188,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       }
       ctx.globalAlpha = 1;
 
-      // ship
       ctx.save();
       ctx.translate(s.x, s.y);
       ctx.rotate(s.angle);
@@ -213,7 +205,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       ctx.restore();
       ctx.shadowBlur = 0;
 
-      // distance gauge
       const maxSafeDist = Math.min(W, H) / 2 - 30;
       const safePct = Math.min(
         1,
@@ -226,11 +217,7 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       ctx.fillStyle = "rgba(0,0,20,0.7)";
       ctx.fillRect(gx2, gy2, gaugeW, gaugeH);
       const gaugeColor =
-        safePct > 0.5
-          ? "oklch(0.7 0.2 145)"
-          : safePct > 0.25
-            ? "#FFAA00"
-            : "#FF2244";
+        safePct > 0.5 ? "#00CC66" : safePct > 0.25 ? "#FFAA00" : "#FF2244";
       ctx.fillStyle = gaugeColor;
       ctx.shadowColor = gaugeColor;
       ctx.shadowBlur = 6;
@@ -243,7 +230,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
       ctx.font = "10px monospace";
       ctx.fillText("DISTANCE FROM EVENT HORIZON", gx2, gy2 - 4);
 
-      // HUD
       ctx.fillStyle = "#E0E8FF";
       ctx.font = "bold 14px 'Plus Jakarta Sans', monospace";
       ctx.fillText(`⏱ ${Math.floor(s.time)}s`, 14, 28);
@@ -255,7 +241,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
         ctx.font = "bold 13px monospace";
         ctx.fillText("🚀 THRUST", W - 100, 28);
       }
-
       if (s.time >= 60) {
         s.gameOver = true;
         onGameOver(60);
@@ -264,7 +249,6 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
 
       rafRef.current = requestAnimationFrame(loop);
     }
-
     rafRef.current = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(rafRef.current);
@@ -294,12 +278,46 @@ export default function GravityEscape({ onGameOver }: GravityEscapeProps) {
           boxShadow: "0 0 28px rgba(255,100,0,0.25)",
           maxWidth: "100%",
           cursor: "pointer",
+          touchAction: "none",
         }}
       />
-      <p style={{ color: "#8899BB", fontSize: 12 }}>
-        Click canvas, Space or ↑ to thrust away from the black hole &mdash;
-        survive 60 seconds!
-      </p>
+      {isMobile ? (
+        <button
+          type="button"
+          onTouchStart={() => {
+            thrustRef.current = true;
+          }}
+          onTouchEnd={() => {
+            thrustRef.current = false;
+          }}
+          onMouseDown={() => {
+            thrustRef.current = true;
+          }}
+          onMouseUp={() => {
+            thrustRef.current = false;
+          }}
+          style={{
+            width: 120,
+            height: 64,
+            borderRadius: 12,
+            background: "rgba(0,0,0,0.5)",
+            border: "2px solid rgba(255,160,50,0.5)",
+            color: "#FF9933",
+            fontSize: 16,
+            fontWeight: 700,
+            cursor: "pointer",
+            touchAction: "none",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+          }}
+        >
+          🚀 THRUST
+        </button>
+      ) : (
+        <p style={{ color: "#8899BB", fontSize: 12 }}>
+          Click canvas, Space or ↑ to thrust — survive 60 seconds!
+        </p>
+      )}
     </div>
   );
 }

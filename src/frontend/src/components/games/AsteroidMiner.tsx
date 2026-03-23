@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useCallback } from "react";
+import type React from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 interface AsteroidMinerProps {
   onGameOver: (score: number) => void;
@@ -40,6 +42,9 @@ interface Particle {
 export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const isMobile = useIsMobile();
+  const touchKeysRef = useRef<Record<string, boolean>>({});
+
   const stateRef = useRef({
     ship: {
       x: 400,
@@ -148,25 +153,27 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
 
       ctx.fillStyle = "rgba(2,4,12,0.85)";
       ctx.fillRect(0, 0, canvas!.width, canvas!.height);
-
-      // starfield
       ctx.fillStyle = "rgba(255,255,255,0.3)";
       for (let i = 0; i < 80; i++) {
-        const sx = (i * 137.5 * 7) % canvas!.width;
-        const sy = (i * 97.3 * 11) % canvas!.height;
-        ctx.fillRect(sx, sy, 1, 1);
+        ctx.fillRect(
+          (i * 137.5 * 7) % canvas!.width,
+          (i * 97.3 * 11) % canvas!.height,
+          1,
+          1,
+        );
       }
 
+      const allKeys = { ...s.keys, ...touchKeysRef.current };
       const ship = s.ship;
       const rotating =
-        s.keys.ArrowLeft || s.keys.KeyA
+        allKeys.ArrowLeft || allKeys.KeyA
           ? -1
-          : s.keys.ArrowRight || s.keys.KeyD
+          : allKeys.ArrowRight || allKeys.KeyD
             ? 1
             : 0;
       ship.angle += rotating * 0.05 * dt;
 
-      const thrusting = s.keys.ArrowUp || s.keys.KeyW;
+      const thrusting = allKeys.ArrowUp || allKeys.KeyW || allKeys.TouchThrust;
       if (thrusting && ship.fuel > 0) {
         ship.vx += Math.cos(ship.angle) * 0.15 * dt;
         ship.vy += Math.sin(ship.angle) * 0.15 * dt;
@@ -184,7 +191,10 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
       ship.y = (ship.y + ship.vy * dt + canvas!.height) % canvas!.height;
 
       s.shootCooldown = Math.max(0, s.shootCooldown - dt);
-      if ((s.keys.Space || s.keys.KeyZ) && s.shootCooldown <= 0) {
+      if (
+        (allKeys.Space || allKeys.KeyZ || allKeys.TouchFire) &&
+        s.shootCooldown <= 0
+      ) {
         const speed = 8;
         s.bullets.push({
           x: ship.x + Math.cos(ship.angle) * 16,
@@ -202,7 +212,6 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
         spawnAsteroid(canvas!, true);
       }
 
-      // bullets
       s.bullets = s.bullets.filter((b) => b.life > 0);
       for (const b of s.bullets) {
         b.x = (b.x + b.vx * dt + canvas!.width) % canvas!.width;
@@ -217,13 +226,10 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
         ctx.shadowBlur = 0;
       }
 
-      // asteroids
       for (let i = s.asteroids.length - 1; i >= 0; i--) {
         const a = s.asteroids[i];
         a.x = (a.x + a.vx * dt + canvas!.width) % canvas!.width;
         a.y = (a.y + a.vy * dt + canvas!.height) % canvas!.height;
-
-        // bullet collision
         for (let j = s.bullets.length - 1; j >= 0; j--) {
           const b = s.bullets[j];
           const dx = b.x - a.x;
@@ -237,13 +243,13 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
               spawnParticles(a.x, a.y, "#FFDD00", 12);
               if (a.radius > 20) {
                 for (let k = 0; k < 2; k++) {
-                  const angle = Math.random() * Math.PI * 2;
+                  const ang = Math.random() * Math.PI * 2;
                   const spd = 1 + Math.random();
                   s.asteroids.push({
                     x: a.x,
                     y: a.y,
-                    vx: Math.cos(angle) * spd,
-                    vy: Math.sin(angle) * spd,
+                    vx: Math.cos(ang) * spd,
+                    vy: Math.sin(ang) * spd,
                     radius: a.radius * 0.5,
                     hp: 1,
                   });
@@ -255,8 +261,6 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
           }
         }
         if (!s.asteroids[i]) continue;
-
-        // ship collision
         if (s.invincible <= 0) {
           const dx = ship.x - s.asteroids[i].x;
           const dy = ship.y - s.asteroids[i].y;
@@ -273,8 +277,6 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
             }
           }
         }
-
-        // draw asteroid
         ctx.save();
         ctx.translate(a.x, a.y);
         ctx.beginPath();
@@ -296,7 +298,6 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
         ctx.shadowBlur = 0;
       }
 
-      // particles
       s.particles = s.particles.filter((p) => p.life > 0);
       for (const p of s.particles) {
         p.x += p.vx * dt;
@@ -310,7 +311,6 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
       }
       ctx.globalAlpha = 1;
 
-      // ship
       if (s.invincible <= 0 || Math.floor(s.invincible / 8) % 2 === 0) {
         ctx.save();
         ctx.translate(ship.x, ship.y);
@@ -340,12 +340,10 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
       }
       s.invincible = Math.max(0, s.invincible - dt);
 
-      // HUD
       ctx.fillStyle = "#E0E8FF";
       ctx.font = "bold 14px 'Plus Jakarta Sans', monospace";
       ctx.fillText(`⭐ Score: ${s.score}`, 14, 28);
       ctx.fillText(`❤️ ${s.lives}`, 14, 50);
-      // fuel bar
       ctx.fillStyle = "#111827";
       ctx.fillRect(canvas!.width - 134, 14, 120, 14);
       const fuelColor =
@@ -367,7 +365,6 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
         onGameOver(s.score);
         return;
       }
-
       rafRef.current = requestAnimationFrame(loop);
     }
 
@@ -378,6 +375,24 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
       window.removeEventListener("keyup", ku);
     };
   }, [spawnAsteroid, spawnParticles, onGameOver]);
+
+  const btnStyle = (active = false): React.CSSProperties => ({
+    width: 64,
+    height: 64,
+    borderRadius: 12,
+    background: active ? "rgba(0,255,255,0.25)" : "rgba(0,0,0,0.5)",
+    border: "2px solid rgba(0,255,255,0.4)",
+    color: "#00FFFF",
+    fontSize: 22,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    touchAction: "none",
+    backdropFilter: "blur(6px)",
+  });
 
   return (
     <div
@@ -397,11 +412,100 @@ export default function AsteroidMiner({ onGameOver }: AsteroidMinerProps) {
           borderRadius: 8,
           boxShadow: "0 0 24px rgba(0,255,255,0.2)",
           maxWidth: "100%",
+          touchAction: "none",
         }}
       />
-      <p style={{ color: "#8899BB", fontSize: 12 }}>
-        A/D or ←/→ Rotate &nbsp;|&nbsp; W/↑ Thrust &nbsp;|&nbsp; Space Shoot
-      </p>
+      {isMobile ? (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            width: "100%",
+            maxWidth: 400,
+            padding: "0 8px",
+            gap: 8,
+          }}
+        >
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              style={btnStyle()}
+              onTouchStart={() => {
+                touchKeysRef.current.ArrowLeft = true;
+              }}
+              onTouchEnd={() => {
+                touchKeysRef.current.ArrowLeft = false;
+              }}
+              onMouseDown={() => {
+                touchKeysRef.current.ArrowLeft = true;
+              }}
+              onMouseUp={() => {
+                touchKeysRef.current.ArrowLeft = false;
+              }}
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              style={btnStyle()}
+              onTouchStart={() => {
+                touchKeysRef.current.ArrowRight = true;
+              }}
+              onTouchEnd={() => {
+                touchKeysRef.current.ArrowRight = false;
+              }}
+              onMouseDown={() => {
+                touchKeysRef.current.ArrowRight = true;
+              }}
+              onMouseUp={() => {
+                touchKeysRef.current.ArrowRight = false;
+              }}
+            >
+              ▶
+            </button>
+          </div>
+          <button
+            type="button"
+            style={btnStyle()}
+            onTouchStart={() => {
+              touchKeysRef.current.TouchThrust = true;
+            }}
+            onTouchEnd={() => {
+              touchKeysRef.current.TouchThrust = false;
+            }}
+            onMouseDown={() => {
+              touchKeysRef.current.TouchThrust = true;
+            }}
+            onMouseUp={() => {
+              touchKeysRef.current.TouchThrust = false;
+            }}
+          >
+            🚀
+          </button>
+          <button
+            type="button"
+            style={btnStyle()}
+            onTouchStart={() => {
+              touchKeysRef.current.TouchFire = true;
+            }}
+            onTouchEnd={() => {
+              touchKeysRef.current.TouchFire = false;
+            }}
+            onMouseDown={() => {
+              touchKeysRef.current.TouchFire = true;
+            }}
+            onMouseUp={() => {
+              touchKeysRef.current.TouchFire = false;
+            }}
+          >
+            💥
+          </button>
+        </div>
+      ) : (
+        <p style={{ color: "#8899BB", fontSize: 12 }}>
+          A/D or ←/→ Rotate &nbsp;|&nbsp; W/↑ Thrust &nbsp;|&nbsp; Space Shoot
+        </p>
+      )}
     </div>
   );
 }

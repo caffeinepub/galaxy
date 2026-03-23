@@ -29,6 +29,11 @@ export interface Star {
     message: string;
     timestamp: Time;
 }
+export interface ConquestLeaderboardEntry {
+    principal: Principal;
+    timestamp: Time;
+    planetsOwned: bigint;
+}
 export interface http_header {
     value: string;
     name: string;
@@ -70,6 +75,11 @@ export interface AdminStats {
 export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
+}
+export interface Planet {
+    planetName: string;
+    owner: Principal;
+    claimedAt: Time;
 }
 export interface NFTWaitlistEntry {
     name: string;
@@ -120,14 +130,17 @@ export interface backendInterface {
     approvePurchaseRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     claimAdmin(): Promise<void>;
+    claimPlanet(planetName: string): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     earnCredits(amount: bigint, description: string): Promise<void>;
     getAdminStats(): Promise<AdminStats>;
+    getAllPlanets(): Promise<Array<Planet>>;
     getAllPurchaseRequests(): Promise<Array<PurchaseRequest>>;
     getAllStars(): Promise<Array<Star>>;
     getBalance(): Promise<bigint>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getConquestLeaderboard(): Promise<Array<ConquestLeaderboardEntry>>;
     getDonations(): Promise<Array<Donation>>;
     getGameLeaderboard(): Promise<Array<GameLeaderboardEntry>>;
     getJournalEntriesForPlanet(planetName: string): Promise<Array<PlanetJournal>>;
@@ -140,6 +153,7 @@ export interface backendInterface {
     getTotalDonations(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getUserPurchaseRequests(): Promise<Array<PurchaseRequest>>;
+    getWeeklyConquestWinner(): Promise<Principal>;
     hasAdmin(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isPremiumUser(user: Principal): Promise<boolean>;

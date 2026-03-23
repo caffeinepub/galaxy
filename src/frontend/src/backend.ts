@@ -111,6 +111,11 @@ export interface Star {
     message: string;
     timestamp: Time;
 }
+export interface ConquestLeaderboardEntry {
+    principal: Principal;
+    timestamp: Time;
+    planetsOwned: bigint;
+}
 export interface http_header {
     value: string;
     name: string;
@@ -152,6 +157,11 @@ export interface AdminStats {
 export interface TransformationInput {
     context: Uint8Array;
     response: http_request_result;
+}
+export interface Planet {
+    planetName: string;
+    owner: Principal;
+    claimedAt: Time;
 }
 export interface NFTWaitlistEntry {
     name: string;
@@ -203,14 +213,17 @@ export interface backendInterface {
     approvePurchaseRequest(requestId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     claimAdmin(): Promise<void>;
+    claimPlanet(planetName: string): Promise<void>;
     createCheckoutSession(items: Array<ShoppingItem>, successUrl: string, cancelUrl: string): Promise<string>;
     earnCredits(amount: bigint, description: string): Promise<void>;
     getAdminStats(): Promise<AdminStats>;
+    getAllPlanets(): Promise<Array<Planet>>;
     getAllPurchaseRequests(): Promise<Array<PurchaseRequest>>;
     getAllStars(): Promise<Array<Star>>;
     getBalance(): Promise<bigint>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getConquestLeaderboard(): Promise<Array<ConquestLeaderboardEntry>>;
     getDonations(): Promise<Array<Donation>>;
     getGameLeaderboard(): Promise<Array<GameLeaderboardEntry>>;
     getJournalEntriesForPlanet(planetName: string): Promise<Array<PlanetJournal>>;
@@ -223,6 +236,7 @@ export interface backendInterface {
     getTotalDonations(): Promise<bigint>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     getUserPurchaseRequests(): Promise<Array<PurchaseRequest>>;
+    getWeeklyConquestWinner(): Promise<Principal>;
     hasAdmin(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isPremiumUser(user: Principal): Promise<boolean>;
@@ -299,6 +313,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async claimPlanet(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.claimPlanet(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.claimPlanet(arg0);
+            return result;
+        }
+    }
     async createCheckoutSession(arg0: Array<ShoppingItem>, arg1: string, arg2: string): Promise<string> {
         if (this.processError) {
             try {
@@ -338,6 +366,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getAdminStats();
+            return result;
+        }
+    }
+    async getAllPlanets(): Promise<Array<Planet>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllPlanets();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllPlanets();
             return result;
         }
     }
@@ -409,6 +451,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getCallerUserRole();
             return from_candid_UserRole_n12(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getConquestLeaderboard(): Promise<Array<ConquestLeaderboardEntry>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getConquestLeaderboard();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getConquestLeaderboard();
+            return result;
         }
     }
     async getDonations(): Promise<Array<Donation>> {
@@ -577,6 +633,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getUserPurchaseRequests();
             return from_candid_vec_n3(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getWeeklyConquestWinner(): Promise<Principal> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getWeeklyConquestWinner();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getWeeklyConquestWinner();
+            return result;
         }
     }
     async hasAdmin(): Promise<boolean> {

@@ -1,4 +1,6 @@
-import React, { useEffect, useRef } from "react";
+import type React from "react";
+import { useEffect, useRef } from "react";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 interface WormholeRacerProps {
   onGameOver: (score: number) => void;
@@ -7,6 +9,9 @@ interface WormholeRacerProps {
 export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const isMobile = useIsMobile();
+  const touchKeysRef = useRef<Record<string, boolean>>({});
+
   const stateRef = useRef({
     playerX: 400,
     playerVX: 0,
@@ -36,7 +41,6 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
     s.speed = 3;
     s.gameOver = false;
 
-    // Generate initial tunnel segments
     s.segments = [];
     let cx = W / 2;
     for (let y = 0; y <= H + 60; y += 20) {
@@ -71,25 +75,21 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
       s.speed = 3 + s.distance * 0.04;
       const scrollSpeed = s.speed;
 
-      // move player
-      const left = s.keys.ArrowLeft || s.keys.KeyA;
-      const right = s.keys.ArrowRight || s.keys.KeyD;
+      const allKeys = { ...s.keys, ...touchKeysRef.current };
+      const left = allKeys.ArrowLeft || allKeys.KeyA || allKeys.TouchLeft;
+      const right = allKeys.ArrowRight || allKeys.KeyD || allKeys.TouchRight;
       if (left) s.playerVX -= 0.7 * dt;
       if (right) s.playerVX += 0.7 * dt;
       s.playerVX *= 0.88;
       s.playerX += s.playerVX * dt;
       s.playerX = Math.max(0, Math.min(W, s.playerX));
 
-      // scroll segments
-      for (const seg of s.segments) {
-        seg.y += scrollSpeed * dt;
-      }
+      for (const seg of s.segments) seg.y += scrollSpeed * dt;
       s.segments = s.segments.filter((seg) => seg.y < H + 80);
       while (s.segments.length < Math.ceil(H / 20) + 5) {
-        const last = s.segments[0];
-        const lastY = last ? Math.min(...s.segments.map((sg) => sg.y)) : 0;
-        const prevCX =
-          s.segments.slice().sort((a, b) => a.y - b.y)[0]?.centerX ?? W / 2;
+        const sortedByY = [...s.segments].sort((a, b) => a.y - b.y);
+        const lastY = sortedByY.length > 0 ? sortedByY[0].y : 0;
+        const prevCX = sortedByY[0]?.centerX ?? W / 2;
         const newCX = Math.max(
           100,
           Math.min(W - 100, prevCX + (Math.random() - 0.5) * 30),
@@ -106,17 +106,13 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
         });
       }
 
-      // ---- DRAW ----
       ctx.fillStyle = "#000010";
       ctx.fillRect(0, 0, W, H);
-
-      // tunnel
       const sortedSegs = [...s.segments].sort((a, b) => a.y - b.y);
       for (let i = 0; i < sortedSegs.length - 1; i++) {
         const seg = sortedSegs[i];
         const next = sortedSegs[i + 1];
         const hue = (seg.hue + s.colorOffset) % 360;
-        // left wall
         ctx.beginPath();
         ctx.moveTo(0, seg.y);
         ctx.lineTo(seg.centerX - seg.width / 2, seg.y);
@@ -125,7 +121,6 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
         ctx.closePath();
         ctx.fillStyle = `hsl(${hue},80%,8%)`;
         ctx.fill();
-        // right wall
         ctx.beginPath();
         ctx.moveTo(W, seg.y);
         ctx.lineTo(seg.centerX + seg.width / 2, seg.y);
@@ -134,7 +129,6 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
         ctx.closePath();
         ctx.fillStyle = `hsl(${(hue + 60) % 360},80%,8%)`;
         ctx.fill();
-        // glow edges
         ctx.beginPath();
         ctx.moveTo(seg.centerX - seg.width / 2, seg.y);
         ctx.lineTo(next.centerX - next.width / 2, next.y);
@@ -152,7 +146,6 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
         ctx.shadowBlur = 0;
       }
 
-      // depth particles
       ctx.fillStyle = "rgba(255,255,255,0.15)";
       for (let i = 0; i < 40; i++) {
         const sx = (i * 173 + s.distance * 8) % W;
@@ -160,7 +153,6 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
         ctx.fillRect(sx, sy, 1.5, 1.5);
       }
 
-      // player
       const playerY = H - 60;
       ctx.beginPath();
       ctx.moveTo(s.playerX, playerY - 12);
@@ -175,7 +167,6 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
       ctx.fill();
       ctx.shadowBlur = 0;
 
-      // collision check
       const nearest = sortedSegs.reduce(
         (best, seg) =>
           Math.abs(seg.y - playerY) < Math.abs(best.y - playerY) ? seg : best,
@@ -191,7 +182,6 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
         }
       }
 
-      // HUD
       ctx.fillStyle = "#E0E8FF";
       ctx.font = "bold 14px 'Plus Jakarta Sans', monospace";
       ctx.fillText(`🚀 Distance: ${Math.floor(s.distance)}`, 14, 28);
@@ -209,6 +199,24 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
       window.removeEventListener("keyup", ku);
     };
   }, [onGameOver]);
+
+  const btnStyle: React.CSSProperties = {
+    width: 80,
+    height: 64,
+    borderRadius: 12,
+    background: "rgba(0,0,0,0.5)",
+    border: "2px solid rgba(160,50,255,0.5)",
+    color: "#BB88FF",
+    fontSize: 24,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+    touchAction: "none",
+    backdropFilter: "blur(6px)",
+  };
 
   return (
     <div
@@ -228,11 +236,53 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
           borderRadius: 8,
           boxShadow: "0 0 28px rgba(160,50,255,0.25)",
           maxWidth: "100%",
+          touchAction: "none",
         }}
       />
-      <p style={{ color: "#8899BB", fontSize: 12 }}>
-        ←/→ or A/D to steer — avoid the walls — speed increases over time!
-      </p>
+      {isMobile ? (
+        <div style={{ display: "flex", gap: 24 }}>
+          <button
+            type="button"
+            style={btnStyle}
+            onTouchStart={() => {
+              touchKeysRef.current.TouchLeft = true;
+            }}
+            onTouchEnd={() => {
+              touchKeysRef.current.TouchLeft = false;
+            }}
+            onMouseDown={() => {
+              touchKeysRef.current.TouchLeft = true;
+            }}
+            onMouseUp={() => {
+              touchKeysRef.current.TouchLeft = false;
+            }}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            style={btnStyle}
+            onTouchStart={() => {
+              touchKeysRef.current.TouchRight = true;
+            }}
+            onTouchEnd={() => {
+              touchKeysRef.current.TouchRight = false;
+            }}
+            onMouseDown={() => {
+              touchKeysRef.current.TouchRight = true;
+            }}
+            onMouseUp={() => {
+              touchKeysRef.current.TouchRight = false;
+            }}
+          >
+            ▶
+          </button>
+        </div>
+      ) : (
+        <p style={{ color: "#8899BB", fontSize: 12 }}>
+          ←/→ or A/D to steer — avoid the walls — speed increases over time!
+        </p>
+      )}
     </div>
   );
 }

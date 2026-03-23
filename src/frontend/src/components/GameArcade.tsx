@@ -3,8 +3,13 @@ import React, { useState, useCallback } from "react";
 import { useActor } from "../hooks/useActor";
 import { BackButton } from "./BackButton";
 import AsteroidMiner from "./games/AsteroidMiner";
+import BlackHoleHeist from "./games/BlackHoleHeist";
+import CosmicConquest from "./games/CosmicConquest";
+import GalacticWar from "./games/GalacticWar";
 import GravityEscape from "./games/GravityEscape";
+import NebulaSurvival from "./games/NebulaSurvival";
 import PlanetTerraformer from "./games/PlanetTerraformer";
+import QuantumBreach from "./games/QuantumBreach";
 import SpaceDefender from "./games/SpaceDefender";
 import WormholeRacer from "./games/WormholeRacer";
 
@@ -90,6 +95,66 @@ const GAMES: GameConfig[] = [
     glowColor: "#00FF88",
     storageKey: "arcade_best_defender",
   },
+  {
+    id: "galactic",
+    name: "Galactic War",
+    icon: "⚔️",
+    description:
+      "Command your fleet in turn-based star map combat. Capture resource nodes and destroy enemy ships.",
+    entryFee: 50,
+    maxReward: 300,
+    themeColor: "rgba(255,80,0,0.12)",
+    glowColor: "#FF5500",
+    storageKey: "arcade_best_galactic",
+  },
+  {
+    id: "quantum",
+    name: "Quantum Breach",
+    icon: "🔐",
+    description:
+      "Hack alien ship systems by activating the correct node sequences before the timer expires.",
+    entryFee: 30,
+    maxReward: 250,
+    themeColor: "rgba(0,255,200,0.1)",
+    glowColor: "#00FFC8",
+    storageKey: "arcade_best_quantum",
+  },
+  {
+    id: "nebula",
+    name: "Nebula Survival",
+    icon: "🌌",
+    description:
+      "Roguelike space shooter. Each run is unique — survive waves, collect power-ups, unlock perks.",
+    entryFee: 40,
+    maxReward: 350,
+    themeColor: "rgba(180,0,255,0.12)",
+    glowColor: "#B400FF",
+    storageKey: "arcade_best_nebula",
+  },
+  {
+    id: "blackhole",
+    name: "Black Hole Heist",
+    icon: "🌀",
+    description:
+      "Navigate your ship through gravitational mazes. Avoid gravity wells and time dilation zones.",
+    entryFee: 50,
+    maxReward: 400,
+    themeColor: "rgba(0,100,255,0.12)",
+    glowColor: "#0066FF",
+    storageKey: "arcade_best_blackhole",
+  },
+  {
+    id: "conquest",
+    name: "Cosmic Conquest",
+    icon: "🌍",
+    description:
+      "Claim planets across the galaxy by completing challenges. Compete for the weekly jackpot.",
+    entryFee: 25,
+    maxReward: 500,
+    themeColor: "rgba(255,200,0,0.1)",
+    glowColor: "#FFC800",
+    storageKey: "arcade_best_conquest",
+  },
 ];
 
 function getBestScore(key: string): number {
@@ -128,6 +193,11 @@ const MAX_SCORES: Record<string, number> = {
   terraformer: 5,
   racer: 500,
   defender: 2000,
+  galactic: 3000,
+  quantum: 1500,
+  nebula: 5000,
+  blackhole: 2500,
+  conquest: 4000,
 };
 
 export default function GameArcade({
@@ -164,9 +234,14 @@ export default function GameArcade({
 
   const handleGameOver = useCallback(
     (gameId: string, score: number) => {
-      const game = GAMES.find((g) => g.id === gameId)!;
+      const game = GAMES.find((g) => g.id === gameId);
+      if (!game) return;
       saveBestScore(game.storageKey, score);
-      const reward = calcReward(score, MAX_SCORES[gameId], game.maxReward);
+      const reward = calcReward(
+        score,
+        MAX_SCORES[gameId] ?? 1000,
+        game.maxReward,
+      );
       onEarnCredits(reward);
       if (actor && reward > 0) {
         actor.recordGameCreditsEarned(BigInt(reward)).catch(() => {});
@@ -211,11 +286,13 @@ export default function GameArcade({
         <div
           style={{
             width: "100%",
-            maxWidth: 900,
+            maxWidth: 960,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             padding: "24px 24px 0",
+            flexWrap: "wrap",
+            gap: 12,
           }}
         >
           <div>
@@ -233,7 +310,8 @@ export default function GameArcade({
               🎮 Game Arcade
             </h1>
             <p style={{ color: "#8899BB", fontSize: 13, margin: "4px 0 0" }}>
-              Spend Nova Credits to play — earn them back based on your score
+              {GAMES.length} games available — Spend Nova Credits to play, earn
+              them back based on your score
             </p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -306,7 +384,7 @@ export default function GameArcade({
           <div
             style={{
               width: "100%",
-              maxWidth: 900,
+              maxWidth: 960,
               padding: "20px 24px 32px",
               display: "flex",
               flexDirection: "column",
@@ -317,9 +395,7 @@ export default function GameArcade({
               <button
                 type="button"
                 data-ocid="arcade.back_button"
-                onClick={() => {
-                  setActiveGame(null);
-                }}
+                onClick={() => setActiveGame(null)}
                 style={{
                   padding: "7px 18px",
                   borderRadius: 8,
@@ -342,6 +418,7 @@ export default function GameArcade({
                 {activeGameConfig.icon} {activeGameConfig.name}
               </span>
             </div>
+
             {activeGame === "asteroid" && (
               <AsteroidMiner
                 onGameOver={(score) => handleGameOver("asteroid", score)}
@@ -367,13 +444,40 @@ export default function GameArcade({
                 onGameOver={(score) => handleGameOver("defender", score)}
               />
             )}
+            {activeGame === "galactic" && (
+              <GalacticWar
+                onGameOver={(score) => handleGameOver("galactic", score)}
+              />
+            )}
+            {activeGame === "quantum" && (
+              <QuantumBreach
+                onGameOver={(score) => handleGameOver("quantum", score)}
+              />
+            )}
+            {activeGame === "nebula" && (
+              <NebulaSurvival
+                onGameOver={(score) => handleGameOver("nebula", score)}
+              />
+            )}
+            {activeGame === "blackhole" && (
+              <BlackHoleHeist
+                onGameOver={(score) => handleGameOver("blackhole", score)}
+              />
+            )}
+            {activeGame === "conquest" && (
+              <CosmicConquest
+                onGameOver={(score) => handleGameOver("conquest", score)}
+                actor={actor}
+                isLoggedIn={isLoggedIn}
+              />
+            )}
           </div>
         ) : (
           /* Lobby */
           <div
             style={{
               width: "100%",
-              maxWidth: 900,
+              maxWidth: 960,
               padding: "24px",
               display: "grid",
               gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
@@ -388,13 +492,13 @@ export default function GameArcade({
                   key={game.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.07 }}
+                  transition={{ delay: idx * 0.05 }}
                   data-ocid={`arcade.item.${idx + 1}`}
                   style={{
                     background: isInsufficient
                       ? "rgba(255,60,60,0.1)"
                       : game.themeColor,
-                    border: `1px solid ${isInsufficient ? "rgba(255,80,80,0.5)" : game.glowColor.replace(")", ",0.3)").replace("#", "rgba(").replace("rgba(", "rgba(0,0,0,0.3)")}`,
+                    border: "1px solid",
                     borderColor: isInsufficient
                       ? "rgba(255,80,80,0.5)"
                       : `${game.glowColor}55`,
@@ -442,7 +546,7 @@ export default function GameArcade({
                       ⭐ {game.entryFee} to play
                     </span>
                     <span style={{ color: "#8899BB" }}>
-                      Max reward: ⭐ {game.maxReward}
+                      Max: ⭐ {game.maxReward}
                     </span>
                   </div>
                   {best > 0 && (

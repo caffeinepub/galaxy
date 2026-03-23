@@ -17,6 +17,11 @@ export interface AdminStats {
   'totalDonations' : bigint,
   'pendingPurchases' : bigint,
 }
+export interface ConquestLeaderboardEntry {
+  'principal' : Principal,
+  'timestamp' : Time,
+  'planetsOwned' : bigint,
+}
 export interface Donation {
   'message' : string,
   'timestamp' : Time,
@@ -37,6 +42,11 @@ export interface NFTWaitlistEntry {
   'user' : Principal,
   'walletAddress' : string,
   'timestamp' : Time,
+}
+export interface Planet {
+  'planetName' : string,
+  'owner' : Principal,
+  'claimedAt' : Time,
 }
 export interface PlanetJournal {
   'planetName' : string,
@@ -106,17 +116,20 @@ export interface _SERVICE {
   'approvePurchaseRequest' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'claimAdmin' : ActorMethod<[], undefined>,
+  'claimPlanet' : ActorMethod<[string], undefined>,
   'createCheckoutSession' : ActorMethod<
     [Array<ShoppingItem>, string, string],
     string
   >,
   'earnCredits' : ActorMethod<[bigint, string], undefined>,
   'getAdminStats' : ActorMethod<[], AdminStats>,
+  'getAllPlanets' : ActorMethod<[], Array<Planet>>,
   'getAllPurchaseRequests' : ActorMethod<[], Array<PurchaseRequest>>,
   'getAllStars' : ActorMethod<[], Array<Star>>,
   'getBalance' : ActorMethod<[], bigint>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getConquestLeaderboard' : ActorMethod<[], Array<ConquestLeaderboardEntry>>,
   'getDonations' : ActorMethod<[], Array<Donation>>,
   'getGameLeaderboard' : ActorMethod<[], Array<GameLeaderboardEntry>>,
   'getJournalEntriesForPlanet' : ActorMethod<[string], Array<PlanetJournal>>,
@@ -129,6 +142,7 @@ export interface _SERVICE {
   'getTotalDonations' : ActorMethod<[], bigint>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserPurchaseRequests' : ActorMethod<[], Array<PurchaseRequest>>,
+  'getWeeklyConquestWinner' : ActorMethod<[], Principal>,
   'hasAdmin' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isPremiumUser' : ActorMethod<[Principal], boolean>,

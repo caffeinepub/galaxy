@@ -13,7 +13,10 @@ import Time "mo:core/Time";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 
+import Array "mo:core/Array";
+
 // Apply migration on upgrade
+
 
 actor {
   let accessControlState = AccessControl.initState();
@@ -96,6 +99,18 @@ actor {
     timestamp : Time.Time;
   };
 
+  public type Planet = {
+    planetName : Text;
+    owner : Principal;
+    claimedAt : Time.Time;
+  };
+
+  public type ConquestLeaderboardEntry = {
+    principal : Principal;
+    planetsOwned : Nat;
+    timestamp : Time.Time;
+  };
+
   public query ({ caller }) func transform(input : OutCall.TransformationInput) : async OutCall.TransformationOutput {
     OutCall.transform(input);
   };
@@ -136,6 +151,7 @@ actor {
   stable var adminPrincipal : ?Principal = null;
 
   // ─── Stable backing storage for collections ───────────────────────────────
+  stable var planets : [(Text, Planet)] = [];
   stable var stableUserProfiles : [(Principal, UserProfile)] = [];
   stable var stableUserCredits : [(Principal, Nat)] = [];
   stable var stableDonations : [Donation] = [];
@@ -158,11 +174,11 @@ actor {
   let nftWaitlist = List.empty<NFTWaitlistEntry>();
   let outcallResults = List.empty<Text>();
   let gameLeaderboard = Map.empty<Principal, Nat>();
+  var planetOwnership = Map.empty<Text, Planet>();
 
   // ─── Upgrade hooks ────────────────────────────────────────────────────────
 
   system func preupgrade() {
-    // Snapshot mutable Maps to stable arrays
     let upBuf = List.empty<(Principal, UserProfile)>();
     for (entry in userProfiles.entries()) { upBuf.add(entry) };
     stableUserProfiles := upBuf.toArray();
@@ -174,6 +190,11 @@ actor {
     let glBuf = List.empty<(Principal, Nat)>();
     for (entry in gameLeaderboard.entries()) { glBuf.add(entry) };
     stableGameLeaderboard := glBuf.toArray();
+
+    // Save planet ownership
+    let poBuf = List.empty<(Text, Planet)>();
+    for (entry in planetOwnership.entries()) { poBuf.add(entry) };
+    planets := poBuf.toArray();
 
     // Snapshot Lists
     stableDonations := donations.toArray();
@@ -189,6 +210,7 @@ actor {
     for ((k, v) in stableUserProfiles.vals()) { userProfiles.add(k, v) };
     for ((k, v) in stableUserCredits.vals()) { userCredits.add(k, v) };
     for ((k, v) in stableGameLeaderboard.vals()) { gameLeaderboard.add(k, v) };
+    for ((k, v) in planets.vals()) { planetOwnership.add(k, v) };
 
     // Restore Lists
     for (d in stableDonations.vals()) { donations.add(d) };
@@ -221,6 +243,133 @@ actor {
     AccessControl.assignRole(accessControlState, caller, caller, #admin);
     adminClaimed := true;
     adminPrincipal := ?caller;
+  };
+
+  // ─── Cosmic Conquest (MVM Planets) ────────────────────────────────────────
+
+  // Initialize 20 planets with default names
+  let planetNames : [Text] = [
+    "Planet 0", "Planet 1", "Planet 2", "Planet 3", "Planet 4",
+    "Planet 5", "Planet 6", "Planet 7", "Planet 8", "Planet 9",
+    "Planet 10", "Planet 11", "Planet 12", "Planet 13", "Planet 14",
+    "Planet 15", "Planet 16", "Planet 17", "Planet 18", "Planet 19"
+  ];
+
+  // Public query - no authentication required (anyone can view planet ownership)
+  public query func getAllPlanets() : async [Planet] {
+    let anonymousPrincipal = Principal.fromText("2vxsx-fae");
+    Array.tabulate<Planet>(
+      20,
+      func(i) {
+        let planetName = planetNames[i];
+        switch (planetOwnership.get(planetName)) {
+          case (?planet) { planet };
+          case (null) {
+            {
+              planetName;
+              owner = anonymousPrincipal;
+              claimedAt = 0;
+            };
+          };
+        };
+      },
+    );
+  };
+
+  // Public query - no authentication required (anyone can view leaderboard)
+  public query func getConquestLeaderboard() : async [ConquestLeaderboardEntry] {
+    // Count planets owned by each user
+    let ownershipCounts = Map.empty<Principal, Nat>();
+    
+    for ((_, planet) in planetOwnership.entries()) {
+      let anonymousPrincipal = Principal.fromText("2vxsx-fae");
+      if (planet.owner != anonymousPrincipal) {
+        let currentCount = switch (ownershipCounts.get(planet.owner)) {
+          case (null) { 0 };
+          case (?count) { count };
+        };
+        ownershipCounts.add(planet.owner, currentCount + 1);
+      };
+    };
+
+    // Convert to leaderboard entries
+    let entries = List.empty<ConquestLeaderboardEntry>();
+    for ((principal, planetsOwned) in ownershipCounts.entries()) {
+      entries.add({
+        principal;
+        planetsOwned;
+        timestamp = Time.now();
+      });
+    };
+
+    // Sort by planets owned (descending) and take top 10
+    let sortedEntries = entries.toArray().sort(
+      func(a, b) {
+        Nat.compare(b.planetsOwned, a.planetsOwned);
+      }
+    );
+
+    if (sortedEntries.size() <= 10) {
+      sortedEntries;
+    } else {
+      sortedEntries.sliceToArray(0, 10);
+    };
+  };
+
+  // Public query - no authentication required (anyone can view weekly winner)
+  public query func getWeeklyConquestWinner() : async Principal {
+    let ownershipCounts = Map.empty<Principal, Nat>();
+    let anonymousPrincipal = Principal.fromText("2vxsx-fae");
+    
+    for ((_, planet) in planetOwnership.entries()) {
+      if (planet.owner != anonymousPrincipal) {
+        let currentCount = switch (ownershipCounts.get(planet.owner)) {
+          case (null) { 0 };
+          case (?count) { count };
+        };
+        ownershipCounts.add(planet.owner, currentCount + 1);
+      };
+    };
+
+    // Find user with most planets
+    var maxPlanets : Nat = 0;
+    var winner : Principal = anonymousPrincipal;
+
+    for ((principal, planetsOwned) in ownershipCounts.entries()) {
+      if (planetsOwned > maxPlanets) {
+        maxPlanets := planetsOwned;
+        winner := principal;
+      };
+    };
+
+    winner;
+  };
+
+  // User-only: authenticated users can claim/reclaim planets
+  public shared ({ caller }) func claimPlanet(planetName : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can claim planets");
+    };
+
+    // Validate planet name exists
+    var validPlanet = false;
+    for (name in planetNames.vals()) {
+      if (name == planetName) {
+        validPlanet := true;
+      };
+    };
+
+    if (not validPlanet) {
+      Runtime.trap("Invalid planet name");
+    };
+
+    // Claim or reclaim the planet
+    let planet : Planet = {
+      planetName;
+      owner = caller;
+      claimedAt = Time.now();
+    };
+    planetOwnership.add(planetName, planet);
   };
 
   // ─── Game Leaderboard ─────────────────────────────────────────────────────
@@ -662,3 +811,4 @@ actor {
     nftWaitlist.toArray();
   };
 };
+
