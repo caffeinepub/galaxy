@@ -573,7 +573,7 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
                           value: fmt(stats.pendingPurchases),
                           icon: "⏳",
                           color:
-                            stats.pendingPurchases > 0n
+                            BigInt(stats.pendingPurchases) > 0n
                               ? "#fbbf24"
                               : "rgba(255,255,255,0.4)",
                         },
@@ -613,7 +613,7 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
                       ))}
                     </div>
 
-                    {stats.pendingPurchases > 0n && (
+                    {BigInt(stats.pendingPurchases) > 0n && (
                       <div
                         style={{
                           background: "rgba(251,191,36,0.08)",
@@ -637,7 +637,7 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
                           >
                             {fmt(stats.pendingPurchases)} Pending Credit
                             Purchase
-                            {stats.pendingPurchases !== 1n ? "s" : ""}
+                            {BigInt(stats.pendingPurchases) !== 1n ? "s" : ""}
                           </div>
                           <div
                             style={{

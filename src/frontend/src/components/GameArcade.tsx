@@ -215,17 +215,26 @@ export default function GameArcade({
   const { actor } = useActor();
 
   const handlePlay = useCallback(
-    (game: GameConfig) => {
+    async (game: GameConfig) => {
       if (!isLoggedIn) return;
       if (novaCredits < game.entryFee) {
         setInsufficientGame(game.id);
         setTimeout(() => setInsufficientGame(null), 2000);
         return;
       }
-      onSpendCredits(game.entryFee);
       if (actor) {
-        actor.spendCredits(BigInt(game.entryFee)).catch(() => {});
+        try {
+          const ok = await actor.spendCredits(BigInt(game.entryFee));
+          if (!ok) {
+            setInsufficientGame(game.id);
+            setTimeout(() => setInsufficientGame(null), 2000);
+            return;
+          }
+        } catch {
+          return;
+        }
       }
+      onSpendCredits(game.entryFee);
       setResultMsg(null);
       setActiveGame(game.id);
     },
@@ -233,7 +242,7 @@ export default function GameArcade({
   );
 
   const handleGameOver = useCallback(
-    (gameId: string, score: number) => {
+    async (gameId: string, score: number) => {
       const game = GAMES.find((g) => g.id === gameId);
       if (!game) return;
       saveBestScore(game.storageKey, score);
@@ -242,13 +251,17 @@ export default function GameArcade({
         MAX_SCORES[gameId] ?? 1000,
         game.maxReward,
       );
-      onEarnCredits(reward);
       if (actor && reward > 0) {
-        actor.recordGameCreditsEarned(BigInt(reward)).catch(() => {});
-        actor
-          .earnCredits(BigInt(reward), `Game reward: ${game.name}`)
-          .catch(() => {});
+        try {
+          await Promise.all([
+            actor.recordGameCreditsEarned(BigInt(reward)),
+            actor.earnCredits(BigInt(reward), `Game reward: ${game.name}`),
+          ]);
+        } catch {
+          // backend call failed — still update local UI
+        }
       }
+      onEarnCredits(reward);
       setResultMsg(
         `Game over! Score: ${score} — You earned ⭐ ${reward} Nova Credits!`,
       );
