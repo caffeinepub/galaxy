@@ -91,13 +91,14 @@ export function CreditShop({ isOpen, onClose }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!actor || !txHash || !creditsRequested) return;
+    const trimmed = creditsRequested.trim();
+    if (!/^\d+$/.test(trimmed) || Number(trimmed) <= 0) {
+      toast.error("Please enter a valid whole number of credits.");
+      return;
+    }
     setSubmitting(true);
     try {
-      await actor.submitPurchaseRequest(
-        txHash,
-        cryptoType,
-        BigInt(creditsRequested),
-      );
+      await actor.submitPurchaseRequest(txHash, cryptoType, BigInt(trimmed));
       toast.success("Purchase request submitted! Admin will approve shortly.");
       setTxHash("");
       setCreditsRequested("");

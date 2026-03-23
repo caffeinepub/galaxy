@@ -109,12 +109,12 @@ export function BlackHole({
 }: BlackHoleProps) {
   const BLACK_HOLE_POS = new THREE.Vector3(400, 0, -600);
   const [hovered, setHovered] = useState(false);
-  const [audioPlaying, setAudioPlaying] = useState(false);
 
   const lensRef = useRef<THREE.Mesh>(null);
   const halo1Ref = useRef<THREE.Mesh>(null);
   const halo2Ref = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
+  const blackHoleAudioActive = useRef(false);
 
   // Accretion disk particles
   const diskGeom = useMemo(() => {
@@ -239,11 +239,11 @@ export function BlackHole({
     const camDist = state.camera.position.distanceTo(BLACK_HOLE_POS);
     const am = audioManagerRef.current;
     if (am) {
-      if (camDist < 650 && !audioPlaying) {
-        setAudioPlaying(true);
+      if (camDist < 650 && !blackHoleAudioActive.current) {
+        blackHoleAudioActive.current = true;
         am.playBlackHoleAmbient();
-      } else if (camDist >= 650 && audioPlaying) {
-        setAudioPlaying(false);
+      } else if (camDist >= 650 && blackHoleAudioActive.current) {
+        blackHoleAudioActive.current = false;
         am.stopBlackHoleAmbient();
       }
     }

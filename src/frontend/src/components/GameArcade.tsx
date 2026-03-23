@@ -142,6 +142,8 @@ export default function GameArcade({
   const [resultMsg, setResultMsg] = useState<string | null>(null);
   const [insufficientGame, setInsufficientGame] = useState<string | null>(null);
 
+  const { actor } = useActor();
+
   const handlePlay = useCallback(
     (game: GameConfig) => {
       if (!isLoggedIn) return;
@@ -151,13 +153,14 @@ export default function GameArcade({
         return;
       }
       onSpendCredits(game.entryFee);
+      if (actor) {
+        actor.spendCredits(BigInt(game.entryFee)).catch(() => {});
+      }
       setResultMsg(null);
       setActiveGame(game.id);
     },
-    [isLoggedIn, novaCredits, onSpendCredits],
+    [isLoggedIn, novaCredits, onSpendCredits, actor],
   );
-
-  const { actor } = useActor();
 
   const handleGameOver = useCallback(
     (gameId: string, score: number) => {
@@ -167,6 +170,9 @@ export default function GameArcade({
       onEarnCredits(reward);
       if (actor && reward > 0) {
         actor.recordGameCreditsEarned(BigInt(reward)).catch(() => {});
+        actor
+          .earnCredits(BigInt(reward), `Game reward: ${game.name}`)
+          .catch(() => {});
       }
       setResultMsg(
         `Game over! Score: ${score} — You earned ⭐ ${reward} Nova Credits!`,

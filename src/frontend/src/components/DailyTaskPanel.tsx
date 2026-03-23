@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -85,12 +84,24 @@ export function DailyTaskPanel({ isOpen, onClose, onCreditsEarned }: Props) {
   const [claimed, setClaimed] = useState<Set<string>>(loadClaimedTasks);
   const [claiming, setClaiming] = useState<string | null>(null);
 
-  // Refresh claimed from localStorage when panel opens
+  // Refresh claimed from localStorage when panel opens + auto-claim login bonus
   useEffect(() => {
-    if (isOpen) {
-      setClaimed(loadClaimedTasks());
+    if (!isOpen) return;
+    const current = loadClaimedTasks();
+    setClaimed(current);
+    // Auto-claim daily login bonus
+    const loginTask = TASKS.find((t) => t.auto && t.id === "daily_login");
+    if (loginTask && !current.has("daily_login") && actor) {
+      const next = new Set(current);
+      next.add("daily_login");
+      saveClaimed(next);
+      setClaimed(next);
+      onCreditsEarned(loginTask.credits);
+      (actor as any)
+        .earnCredits(BigInt(loginTask.credits), "Daily login bonus")
+        .catch(() => {});
     }
-  }, [isOpen]);
+  }, [isOpen, actor, onCreditsEarned]);
 
   async function claimTask(task: Task) {
     if (!actor || claimed.has(task.id) || claiming) return;

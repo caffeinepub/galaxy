@@ -100,7 +100,7 @@ actor {
     OutCall.transform(input);
   };
 
-  // Stripe integration
+  // Stripe integration (kept for API compatibility)
   var stripeConfiguration : ?Stripe.StripeConfiguration = null;
 
   func getStripeConfiguration() : Stripe.StripeConfiguration {
@@ -129,9 +129,25 @@ actor {
     await Stripe.createCheckoutSession(getStripeConfiguration(), caller, items, successUrl, cancelUrl, transform);
   };
 
-  // Other state variables and functions (unchanged from deployment 1)
-  let userProfiles = Map.empty<Principal, UserProfile>();
-  var totalDonations = 0;
+  // ─── Stable primitive state ───────────────────────────────────────────────
+  // These survive upgrades without preupgrade/postupgrade
+  stable var adminClaimed = false;
+  stable var totalDonations : Nat = 0;
+  stable var adminPrincipal : ?Principal = null;
+
+  // ─── Stable backing storage for collections ───────────────────────────────
+  stable var stableUserProfiles : [(Principal, UserProfile)] = [];
+  stable var stableUserCredits : [(Principal, Nat)] = [];
+  stable var stableDonations : [Donation] = [];
+  stable var stableStarRegistry : [Star] = [];
+  stable var stablePlanetJournals : [PlanetJournal] = [];
+  stable var stablePurchaseRequests : [PurchaseRequest] = [];
+  stable var stableLoginActivity : [LoginRecord] = [];
+  stable var stableGameLeaderboard : [(Principal, Nat)] = [];
+  stable var stableNFTWaitlist : [NFTWaitlistEntry] = [];
+
+  // ─── Mutable live collections (reconstructed on upgrade) ──────────────────
+  var userProfiles = Map.empty<Principal, UserProfile>();
   let donations = List.empty<Donation>();
   let starRegistry = List.empty<Star>();
   let planetJournals = List.empty<PlanetJournal>();
@@ -141,15 +157,78 @@ actor {
   let loginActivity = List.empty<LoginRecord>();
   let nftWaitlist = List.empty<NFTWaitlistEntry>();
   let outcallResults = List.empty<Text>();
-  var adminClaimed = false;
+  let gameLeaderboard = Map.empty<Principal, Nat>();
 
-  // Game Leaderboard
+  // ─── Upgrade hooks ────────────────────────────────────────────────────────
+
+  system func preupgrade() {
+    // Snapshot mutable Maps to stable arrays
+    let upBuf = List.empty<(Principal, UserProfile)>();
+    for (entry in userProfiles.entries()) { upBuf.add(entry) };
+    stableUserProfiles := upBuf.toArray();
+
+    let ucBuf = List.empty<(Principal, Nat)>();
+    for (entry in userCredits.entries()) { ucBuf.add(entry) };
+    stableUserCredits := ucBuf.toArray();
+
+    let glBuf = List.empty<(Principal, Nat)>();
+    for (entry in gameLeaderboard.entries()) { glBuf.add(entry) };
+    stableGameLeaderboard := glBuf.toArray();
+
+    // Snapshot Lists
+    stableDonations := donations.toArray();
+    stableStarRegistry := starRegistry.toArray();
+    stablePlanetJournals := planetJournals.toArray();
+    stablePurchaseRequests := purchaseRequests.toArray();
+    stableLoginActivity := loginActivity.toArray();
+    stableNFTWaitlist := nftWaitlist.toArray();
+  };
+
+  system func postupgrade() {
+    // Restore Maps
+    for ((k, v) in stableUserProfiles.vals()) { userProfiles.add(k, v) };
+    for ((k, v) in stableUserCredits.vals()) { userCredits.add(k, v) };
+    for ((k, v) in stableGameLeaderboard.vals()) { gameLeaderboard.add(k, v) };
+
+    // Restore Lists
+    for (d in stableDonations.vals()) { donations.add(d) };
+    for (s in stableStarRegistry.vals()) { starRegistry.add(s) };
+    for (j in stablePlanetJournals.vals()) { planetJournals.add(j) };
+    for (p in stablePurchaseRequests.vals()) { purchaseRequests.add(p) };
+    for (l in stableLoginActivity.vals()) { loginActivity.add(l) };
+    for (n in stableNFTWaitlist.vals()) { nftWaitlist.add(n) };
+
+    // Restore admin role in AccessControl (survives upgrades)
+    switch (adminPrincipal) {
+      case (?p) {
+        AccessControl.assignRole(accessControlState, p, p, #admin);
+      };
+      case (null) {};
+    };
+  };
+
+  // ─── Admin management ─────────────────────────────────────────────────────
+
+  public query func hasAdmin() : async Bool {
+    adminClaimed;
+  };
+
+
+  public shared ({ caller }) func claimAdmin() : async () {
+    if (adminClaimed) {
+      Runtime.trap("Admin already claimed");
+    };
+    AccessControl.assignRole(accessControlState, caller, caller, #admin);
+    adminClaimed := true;
+    adminPrincipal := ?caller;
+  };
+
+  // ─── Game Leaderboard ─────────────────────────────────────────────────────
+
   public type GameLeaderboardEntry = {
     principal : Principal;
     totalGameCredits : Nat;
   };
-
-  let gameLeaderboard = Map.empty<Principal, Nat>();
 
   public shared ({ caller }) func recordGameCreditsEarned(amount : Nat) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
@@ -185,7 +264,8 @@ actor {
     };
   };
 
-  // User Management
+  // ─── User Management ──────────────────────────────────────────────────────
+
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can get profiles");
@@ -207,7 +287,8 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // Donations
+  // ─── Donations ────────────────────────────────────────────────────────────
+
   public shared ({ caller }) func recordDonation(amount : Nat, message : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only authenticated users can record donations");
@@ -230,7 +311,8 @@ actor {
     donations.toArray();
   };
 
-  // Star Registry
+  // ─── Star Registry ────────────────────────────────────────────────────────
+
   public shared ({ caller }) func submitStar(name : Text, message : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can submit stars");
@@ -258,7 +340,8 @@ actor {
     ownerStars.toArray();
   };
 
-  // Planet Journals
+  // ─── Planet Journals ──────────────────────────────────────────────────────
+
   public shared ({ caller }) func submitJournalEntry(planetName : Text, entry : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can submit journal entries");
@@ -289,7 +372,8 @@ actor {
     };
   };
 
-  // Leaderboard
+  // ─── Leaderboard (Donations) ──────────────────────────────────────────────
+
   public query func getTopDonors() : async [DonorAggregate] {
     let donorTotals = Map.empty<Principal, Nat>();
 
@@ -329,7 +413,8 @@ actor {
     };
   };
 
-  // Premium Status
+  // ─── Premium Status ───────────────────────────────────────────────────────
+
   public query func isPremiumUser(user : Principal) : async Bool {
     for (donation in donations.values()) {
       if (donation.donor == user and donation.amount > 0) {
@@ -339,7 +424,8 @@ actor {
     false;
   };
 
-  // Nova Credits
+  // ─── Nova Credits ─────────────────────────────────────────────────────────
+
   public shared ({ caller }) func getBalance() : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can get their balance");
@@ -483,7 +569,8 @@ actor {
     };
   };
 
-  // Login tracking
+  // ─── Login tracking ───────────────────────────────────────────────────────
+
   public shared ({ caller }) func recordLogin() : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can record login");
@@ -553,7 +640,8 @@ actor {
     };
   };
 
-  // NFT Waitlist
+  // ─── NFT Waitlist (kept for API compatibility) ────────────────────────────
+
   public shared ({ caller }) func submitNFTWaitlist(name : Text, walletAddress : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can join the waitlist");
@@ -572,18 +660,5 @@ actor {
       Runtime.trap("Unauthorized: Only admins can view the NFT waitlist");
     };
     nftWaitlist.toArray();
-  };
-
-  // Admin claim
-  public query func hasAdmin() : async Bool {
-    adminClaimed;
-  };
-
-  public shared ({ caller }) func claimAdmin() : async () {
-    if (adminClaimed) {
-      Runtime.trap("Admin already claimed");
-    };
-    AccessControl.assignRole(accessControlState, caller, caller, #admin);
-    adminClaimed := true;
   };
 };

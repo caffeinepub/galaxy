@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
+import { useActor } from "../hooks/useActor";
 
 const PANEL_STYLE: CSSProperties = {
   background: "rgba(11,16,23,0.92)",
@@ -195,9 +196,11 @@ export function hasPendingChallenge(): boolean {
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onCreditsEarned?: (amount: number) => void;
 }
 
-export function DailyChallenge({ open, onOpenChange }: Props) {
+export function DailyChallenge({ open, onOpenChange, onCreditsEarned }: Props) {
+  const { actor } = useActor();
   const [questions] = useState(() => getDailyQuestions());
   const [qIndex, setQIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -239,6 +242,16 @@ export function DailyChallenge({ open, onOpenChange }: Props) {
       localStorage.setItem("galaxy_last_challenge_date", today);
       setAlreadyDone(true);
       setPhase("results");
+      // Award credits for correct answers
+      const creditsEarned = score * 30;
+      if (creditsEarned > 0) {
+        onCreditsEarned?.(creditsEarned);
+        if (actor) {
+          (actor as any)
+            .earnCredits(BigInt(creditsEarned), "Daily trivia correct answer")
+            .catch(() => {});
+        }
+      }
     } else {
       setQIndex((i) => i + 1);
     }

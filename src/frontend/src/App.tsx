@@ -66,7 +66,6 @@ import { useIsMobile } from "./hooks/use-mobile";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useIsPremiumUser } from "./hooks/useQueries";
-import { useSpaceAudio } from "./hooks/useSpaceAudio";
 import { audioManager } from "./utils/AudioManager";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1040,7 +1039,14 @@ export default function App() {
     useState<PlanetConfig | null>(null);
   const planetPositionsRef = useRef<Record<string, Vector3>>({});
   const { identity } = useInternetIdentity();
-  const { isMuted, toggleMute } = useSpaceAudio("space");
+  const [isMuted, setIsMuted] = useState(false);
+  const toggleMute = () => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      audioManager.setMasterVolume(next ? 0 : 0.5);
+      return next;
+    });
+  };
   const isMobile = useIsMobile();
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [scaleMode, setScaleMode] = useState(false);
@@ -1900,16 +1906,16 @@ export default function App() {
                 setMenuOpen(false);
               }}
             >
-              <MenuBtn
-                ocid="arcade.open_modal_button"
-                onClick={() => {
-                  setArcadeOpen(true);
-                  setMenuOpen(false);
-                }}
-              >
-                🎮 Game Arcade
-              </MenuBtn>
               ⭐ Name a Star
+            </MenuBtn>
+            <MenuBtn
+              ocid="arcade.open_modal_button"
+              onClick={() => {
+                setArcadeOpen(true);
+                setMenuOpen(false);
+              }}
+            >
+              🎮 Game Arcade
             </MenuBtn>
 
             <button
@@ -2133,6 +2139,7 @@ export default function App() {
         onCreditsSpent={(amount) =>
           setNovaCredits((prev) => Math.max(0, prev - amount))
         }
+        onCreditsEarned={(amount) => setNovaCredits((prev) => prev + amount)}
       />
       <Leaderboard
         open={leaderboardOpen}
@@ -2157,6 +2164,7 @@ export default function App() {
       <DailyChallenge
         open={dailyChallengeOpen}
         onOpenChange={setDailyChallengeOpen}
+        onCreditsEarned={(amount) => setNovaCredits((prev) => prev + amount)}
       />
       <SpaceTimeline open={timelineOpen} onOpenChange={setTimelineOpen} />
       {multiverseOpen && (

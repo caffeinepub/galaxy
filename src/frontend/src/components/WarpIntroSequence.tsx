@@ -409,7 +409,9 @@ export function WarpIntroSequence({ onComplete }: WarpIntroSequenceProps) {
     <button
       type="button"
       onClick={handleClick}
-      onKeyDown={handleClick}
+      onKeyDown={(e: React.KeyboardEvent) => {
+        if (e.key === " " || e.key === "Enter") handleClick();
+      }}
       tabIndex={0}
       style={{
         position: "fixed",
@@ -433,8 +435,7 @@ export function WarpIntroSequence({ onComplete }: WarpIntroSequenceProps) {
         }}
       />
       {showSkip && (
-        <button
-          type="button"
+        <div
           style={{
             position: "absolute",
             bottom: "2rem",
@@ -448,7 +449,7 @@ export function WarpIntroSequence({ onComplete }: WarpIntroSequenceProps) {
           }}
         >
           TAP TO SKIP
-        </button>
+        </div>
       )}
     </button>
   );

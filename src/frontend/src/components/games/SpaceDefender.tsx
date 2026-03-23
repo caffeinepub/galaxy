@@ -53,11 +53,15 @@ export default function SpaceDefender({ onGameOver }: SpaceDefenderProps) {
   const spawnWave = (wave: number) => {
     const s = stateRef.current;
     s.aliens = [];
-    const cols = 8 + wave;
+    const cols = Math.min(8 + wave, 12);
     const rows = Math.min(3 + Math.floor(wave / 2), 5);
+    // Cap total enemies at 20 per wave
+    const maxEnemies = 20;
     const speed = 0.4 + wave * 0.1;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
+    let spawned = 0;
+    for (let r = 0; r < rows && spawned < maxEnemies; r++) {
+      for (let c = 0; c < cols && spawned < maxEnemies; c++) {
+        spawned++;
         s.aliens.push({
           x: 60 + c * (680 / cols),
           y: 60 + r * 50,

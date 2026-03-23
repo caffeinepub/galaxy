@@ -44,7 +44,6 @@ export function NovaCreditsDisplay({ credits, rank }: Props) {
         backdropFilter: "blur(12px)",
         WebkitBackdropFilter: "blur(12px)",
         zIndex: 200,
-        pointerEvents: "none",
         fontFamily: "'Courier New', 'JetBrains Mono', monospace",
         boxShadow: "0 0 16px rgba(0,245,255,0.2)",
       }}

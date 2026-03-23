@@ -44,46 +44,6 @@ export function useTotalDonations() {
   });
 }
 
-export function useIsStripeConfigured() {
-  const { actor, isFetching } = useActor();
-  return useQuery({
-    queryKey: ["stripeConfigured"],
-    queryFn: async () => {
-      if (!actor) return false;
-      return actor.isStripeConfigured();
-    },
-    enabled: !!actor && !isFetching,
-  });
-}
-
-export function useCreateCheckoutSession() {
-  const { actor } = useActor();
-  return useMutation({
-    mutationFn: async ({
-      amountCents,
-      message,
-    }: {
-      amountCents: number;
-      message: string;
-    }) => {
-      if (!actor) throw new Error("Not connected");
-      const successUrl = `${window.location.origin}${window.location.pathname}?payment_success=1&amount=${amountCents}`;
-      const cancelUrl = `${window.location.origin}${window.location.pathname}?payment_cancelled=1`;
-      const items = [
-        {
-          productName: "Space Exploration Donation",
-          currency: "usd",
-          quantity: 1n,
-          priceInCents: BigInt(amountCents),
-          productDescription: message || "Supporting space exploration",
-        },
-      ];
-      return actor.createCheckoutSession(items, successUrl, cancelUrl);
-    },
-    onError: () => toast.error("Failed to create checkout session"),
-  });
-}
-
 export function useRecordDonation() {
   const { actor } = useActor();
   const qc = useQueryClient();

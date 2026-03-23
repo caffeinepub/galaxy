@@ -78,9 +78,7 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
           await Promise.all([
             actor.getAdminStats(),
             actor.getLoginActivity(),
-            (actor as any).getAllPurchaseRequests() as Promise<
-              PurchaseRequest[]
-            >,
+            actor.getAllPurchaseRequests(),
           ]);
         setStats(statsResult);
         setActivity(activityResult.slice(0, 20));
@@ -182,6 +180,47 @@ export function AdminDashboard({ isOpen, onClose }: Props) {
       )}
     </button>
   );
+
+  if (isOpen && !actor) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 500,
+          background: "rgba(0,0,10,0.92)",
+          backdropFilter: "blur(8px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Plus Jakarta Sans', monospace",
+        }}
+      >
+        <div style={{ textAlign: "center", color: "#9AA7B6", fontSize: 16 }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+          <div>Please log in to access the admin dashboard.</div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              marginTop: 24,
+              padding: "8px 20px",
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 8,
+              color: "#C8D4E0",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <AnimatePresence>

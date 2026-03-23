@@ -552,9 +552,10 @@ function UniverseSceneContent({ universeId }: { universeId: string }) {
 function UniverseScene({ universe }: { universe: Universe }) {
   return (
     <Canvas
+      key={universe.id}
       style={{ width: "100%", height: "100%" }}
       camera={{ position: [0, 20, 60], fov: 55 }}
-      gl={{ antialias: true }}
+      gl={{ antialias: true, powerPreference: "low-power" }}
     >
       <color attach="background" args={[universe.bgColor]} />
       <fog
@@ -929,7 +930,7 @@ export function MultiverseView({ onClose }: MultiverseViewProps) {
         <AnimatePresence>
           {activeUniverse && (
             <motion.div
-              key="universe-view"
+              key={`universe-view-${activeUniverse.id}`}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}

@@ -604,7 +604,15 @@ function MissionCinematic({
   mission,
   role,
   onBack,
-}: { mission: Mission; role: MissionRole; onBack: () => void }) {
+  onCreditsEarned,
+  actor,
+}: {
+  mission: Mission;
+  role: MissionRole;
+  onBack: () => void;
+  onCreditsEarned?: (amount: number) => void;
+  actor?: any;
+}) {
   const [phaseIndex, setPhaseIndex] = useState(-1);
   const [progress, setProgress] = useState(0);
   const [started, setStarted] = useState(false);
@@ -617,6 +625,16 @@ function MissionCinematic({
       ? mission.phases[phaseIndex]
       : null;
   const isComplete = phaseIndex >= mission.phases.length;
+  const creditsAwardedRef = useRef(false);
+  useEffect(() => {
+    if (isComplete && !creditsAwardedRef.current) {
+      creditsAwardedRef.current = true;
+      onCreditsEarned?.(200);
+      if (actor) {
+        actor.earnCredits(200n, "Mission completed").catch(() => {});
+      }
+    }
+  }, [isComplete, onCreditsEarned, actor]);
   const [countdownNum, setCountdownNum] = useState<number | null>(null);
 
   function startMission() {
@@ -958,6 +976,16 @@ function MissionCinematic({
                   style={{ color: "#9AA7B6", fontSize: 14, marginBottom: 24 }}
                 >
                   All mission objectives achieved successfully.
+                </div>
+                <div
+                  style={{
+                    color: "#F6C35B",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    marginBottom: 12,
+                  }}
+                >
+                  ✦ +200 Nova Credits earned!
                 </div>
                 <div style={{ color: "#5a6a7a", fontSize: 12 }}>
                   Total mission time: {missionElapsedStr}
@@ -1428,6 +1456,7 @@ interface Props {
   onNavigateToPlanet?: (name: string) => void;
   novaCredits?: number;
   onCreditsSpent?: (amount: number) => void;
+  onCreditsEarned?: (amount: number) => void;
 }
 
 export function SpaceMissions({
@@ -1436,18 +1465,21 @@ export function SpaceMissions({
   onNavigateToPlanet,
   novaCredits = 0,
   onCreditsSpent,
+  onCreditsEarned,
 }: Props) {
   const { actor } = useActor();
   const [activeMission, setActiveMission] = useState<Mission | null>(null);
   const [roleScreen, setRoleScreen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<MissionRole>("pilot");
   const [launching, setLaunching] = useState<string | null>(null);
+  const isLaunchingRef = useRef(false);
 
   async function handleSelectMission(m: Mission) {
     if (!actor) {
       toast.error("Please log in to launch missions.");
       return;
     }
+    if (isLaunchingRef.current) return;
     if (novaCredits < MISSION_COST) {
       toast.error(
         `Insufficient Nova Credits. Need ${MISSION_COST} credits to launch.`,
@@ -1461,6 +1493,7 @@ export function SpaceMissions({
       );
       return;
     }
+    isLaunchingRef.current = true;
     setLaunching(m.id);
     try {
       const success = await actor.spendCredits(BigInt(MISSION_COST));
@@ -1487,6 +1520,7 @@ export function SpaceMissions({
     } catch {
       toast.error("Failed to process credit payment.");
     } finally {
+      isLaunchingRef.current = false;
       setLaunching(null);
     }
   }
@@ -1523,6 +1557,8 @@ export function SpaceMissions({
         mission={activeMission}
         role={selectedRole}
         onBack={handleBack}
+        onCreditsEarned={onCreditsEarned}
+        actor={actor}
       />
     );
   }

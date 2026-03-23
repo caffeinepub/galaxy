@@ -1,30 +1,46 @@
 # Multi-verse of Madness
 
 ## Current State
-The app opens to a LandingScreen (`currentView === 'landing'`). Navigation from the landing screen sets `currentView` to `'solar'` and opens feature modals (MultiverseView, GameArcade, SpaceMissions, Leaderboard) as overlays over the solar system canvas. There is a fixed '⌂ Home' button that returns to landing, but NO back button exists on any modal or sub-view. The UI is not responsive — the 240px left menu panel and fixed-position HUD elements have no mobile breakpoints.
+The app has 38 known bugs across 4 severity levels. Backend has no stable variables (all data wiped on every redeploy), missing `isCallerAdmin()` function, and dead Stripe/NFT code. Frontend has a nested button bug making Game Arcade inaccessible from the menu, double AudioContext, broken credit persistence, zero-reward issues in games/missions, and various other critical/medium/low bugs.
 
 ## Requested Changes (Diff)
 
 ### Add
-- A consistent back button (sci-fi HUD style, top-left corner) on every full-screen modal/overlay: MultiverseView, GameArcade, SpaceMissions, Leaderboard, AdminDashboard, CreditShop, DailyTaskPanel, DonationModal, and any other full-screen view
-- The back button should call its respective `onClose`/`onBack` prop to dismiss the overlay and return the user to the previous context
-- Mobile-responsive layout fixes: the 240px left side menu panel should collapse or reposition on screens < 768px, the HUD elements should not overlap on small screens, touch targets should be at least 44x44px
-- A media query or JS-based breakpoint check (`useIsMobile`) to adjust layout for phones
+- `isCallerAdmin()` public query function to backend
+- `stable var adminPrincipal` to backend (restore admin role on upgrade)
+- Stable backing arrays + preupgrade/postupgrade hooks to backend
+- Login guard to AdminDashboard
+- Auto-claim login bonus in DailyTaskPanel
+- Credit reward on SpaceMissions completion
+- Credit reward on DailyChallenge trivia correct answer
+- Wave cap in SpaceDefender
+- RAF cancel on game-over in AsteroidMiner
 
 ### Modify
-- All full-screen overlay components (MultiverseView, GameArcade, SpaceMissions, Leaderboard, AdminDashboard, CreditShop, DailyTaskPanel) to include a back/close button in a consistent top-left position
-- App.tsx side menu panel: add responsive width/positioning for mobile
-- Game components (AsteroidMiner, SpaceDefender, WormholeRacer, GravityEscape, PlanetTerraformer) to include a back button returning to the GameArcade lobby
-- LandingScreen: ensure nav cards and buttons are properly touch-sized and laid out on mobile
+- Backend: `adminClaimed` → `stable var adminClaimed`
+- Backend: `totalDonations` → `stable var totalDonations`
+- Backend: Add stable backing arrays for all collections (preupgrade/postupgrade)
+- App.tsx: Unbundle Game Arcade MenuBtn from inside Name a Star MenuBtn
+- App.tsx: Remove double AudioContext (remove useSpaceAudio or consolidate with AudioManager)
+- useQueries.ts: Remove dead Stripe hooks
+- GameArcade.tsx: Wire entry fee to backend spendCredits, wire earn to backend earnCredits
+- CreditShop.tsx: Validate BigInt input (no decimals, no empty)
+- AdminDashboard.tsx: Remove `as any` cast, fix BigInt comparison
+- NovaCreditsDisplay.tsx: Remove `pointerEvents: none`
+- WormholeRacer.tsx: Fix `.sort()` mutating segments in RAF loop
+- SpaceMissions.tsx: Fix double-spend race condition with processing flag
+- WarpIntroSequence.tsx: Fix skip button (remove nested button, fix pointerEvents)
+- MultiverseView.tsx: Reuse WebGL canvas (don't recreate on each visit)
+- BlackHole.tsx: Prevent audio double-layer with trigger guard
+- PlanetTerraformer.tsx: Fix stale closure in handleNext
 
 ### Remove
-- Nothing removed
+- NFTTeaser.tsx and MonetizationModal.tsx (delete dead files)
+- App.tsx.bak (delete stale backup)
+- Dead Stripe/NFT imports and unused hooks
 
 ## Implementation Plan
-1. Create or use existing `useIsMobile` hook to detect mobile viewport (< 768px)
-2. Add a reusable `BackButton` component with sci-fi HUD styling (neon border, monospace font, chevron left icon)
-3. Add `BackButton` to the top-left of: MultiverseView, GameArcade, SpaceMissions, Leaderboard, AdminDashboard, CreditShop, DailyTaskPanel, DonationModal
-4. Add back button inside each mini-game (AsteroidMiner, SpaceDefender, WormholeRacer, GravityEscape, PlanetTerraformer) to return to GameArcade
-5. Fix App.tsx side menu to use responsive width and positioning on mobile (stack below or hide behind hamburger on small screens)
-6. Ensure all interactive elements have minimum 44px touch targets for mobile
-7. Fix any overflow/wrapping issues in HUD elements on narrow screens
+1. Fix main.mo: add stable vars, preupgrade/postupgrade, isCallerAdmin, restore admin on upgrade
+2. Fix App.tsx: unbundle nested button, remove dead imports
+3. Fix all game/component bugs across frontend files
+4. Delete dead files (NFTTeaser, MonetizationModal, App.tsx.bak)

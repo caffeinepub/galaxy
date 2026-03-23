@@ -209,8 +209,12 @@ export default function PlanetTerraformer({
   const handleNext = useCallback(() => {
     if (round + 1 >= PLANETS.length) {
       setPhase("done");
-      const score = roundResults.filter(Boolean).length + (lastPassed ? 1 : 0);
-      onGameOver(score);
+      // Use functional update to get accurate roundResults + lastPassed
+      setRoundResults((prev) => {
+        const score = prev.filter(Boolean).length + (lastPassed ? 1 : 0);
+        onGameOver(score);
+        return prev;
+      });
     } else {
       const nextRound = round + 1;
       setRound(nextRound);
@@ -218,7 +222,7 @@ export default function PlanetTerraformer({
       setActionsLeft(5);
       setPhase("play");
     }
-  }, [round, roundResults, lastPassed, onGameOver]);
+  }, [round, lastPassed, onGameOver]);
 
   const allPassed = roundResults.filter(Boolean).length + (lastPassed ? 1 : 0);
 

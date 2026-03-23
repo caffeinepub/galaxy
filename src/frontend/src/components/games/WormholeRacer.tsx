@@ -89,7 +89,7 @@ export default function WormholeRacer({ onGameOver }: WormholeRacerProps) {
         const last = s.segments[0];
         const lastY = last ? Math.min(...s.segments.map((sg) => sg.y)) : 0;
         const prevCX =
-          s.segments.sort((a, b) => a.y - b.y)[0]?.centerX ?? W / 2;
+          s.segments.slice().sort((a, b) => a.y - b.y)[0]?.centerX ?? W / 2;
         const newCX = Math.max(
           100,
           Math.min(W - 100, prevCX + (Math.random() - 0.5) * 30),
