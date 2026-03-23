@@ -8,6 +8,7 @@ import { Check, Copy, Heart, Rocket } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { useTotalDonations } from "../hooks/useQueries";
+import { BackButton } from "./BackButton";
 
 const CRYPTO_OPTIONS = [
   {
@@ -185,6 +186,7 @@ export function DonationModal({ open, onOpenChange }: DonationModalProps) {
         style={panelStyle}
         className="border-0"
       >
+        <BackButton onClick={() => onOpenChange(false)} />
         <DialogHeader>
           <div
             style={{

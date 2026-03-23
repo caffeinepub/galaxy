@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
+import { BackButton } from "./BackButton";
 
 interface Task {
   id: string;
@@ -147,6 +148,7 @@ export function DailyTaskPanel({ isOpen, onClose, onCreditsEarned }: Props) {
           }}
           onClick={onClose}
         >
+          <BackButton onClick={() => onClose()} />
           <motion.div
             initial={{ opacity: 0, scale: 0.92, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}

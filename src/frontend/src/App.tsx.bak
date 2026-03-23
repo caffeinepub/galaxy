@@ -47,9 +47,11 @@ import { DailyTaskPanel } from "./components/DailyTaskPanel";
 import { DonationModal } from "./components/DonationModal";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import GameArcade from "./components/GameArcade";
-import { LandingScreen } from "./components/LandingScreen";
+import { InterstellarBlackHoleHero } from "./components/InterstellarBlackHoleHero";
 import { Leaderboard } from "./components/Leaderboard";
+import { MonetizationModal } from "./components/MonetizationModal";
 import { MultiverseView } from "./components/MultiverseView";
+import { NFTTeaser } from "./components/NFTTeaser";
 import { NameAStar } from "./components/NameAStar";
 import { NovaCreditsDisplay } from "./components/NovaCreditsDisplay";
 import { PlanetJournal } from "./components/PlanetJournal";
@@ -62,7 +64,6 @@ import { SpaceTimeline } from "./components/SpaceTimeline";
 import { SurfaceView } from "./components/SurfaceView";
 import { WarpIntroSequence } from "./components/WarpIntroSequence";
 import { WormholeEffect } from "./components/WormholeEffect";
-import { useIsMobile } from "./hooks/use-mobile";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useIsPremiumUser } from "./hooks/useQueries";
@@ -1027,9 +1028,7 @@ function MenuBtn({
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [currentView, setCurrentView] = useState<
-    "landing" | "solar" | "multiverse" | "arcade" | "missions" | "leaderboard"
-  >("landing");
+  const [showSolarSystem, setShowSolarSystem] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("solar");
   const [selectedPlanetName, setSelectedPlanetName] = useState<string | null>(
     null,
@@ -1041,7 +1040,6 @@ export default function App() {
   const planetPositionsRef = useRef<Record<string, Vector3>>({});
   const { identity } = useInternetIdentity();
   const { isMuted, toggleMute } = useSpaceAudio("space");
-  const isMobile = useIsMobile();
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
   const [scaleMode, setScaleMode] = useState(false);
   const [constellationMode, setConstellationMode] = useState(false);
@@ -1052,6 +1050,7 @@ export default function App() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [journalOpen, setJournalOpen] = useState(false);
   const [nameStarOpen, setNameStarOpen] = useState(false);
+  const [monetizeOpen, setMonetizeOpen] = useState(false);
   const [dailyChallengeOpen, setDailyChallengeOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [multiverseOpen, setMultiverseOpen] = useState(false);
@@ -1064,7 +1063,8 @@ export default function App() {
   const [creditShopOpen, setCreditShopOpen] = useState(false);
   const [dailyTasksOpen, setDailyTasksOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
-  const [showIntro, setShowIntro] = useState(false);
+  const [nftTeaserOpen, setNftTeaserOpen] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
   const [arcadeOpen, setArcadeOpen] = useState(false);
   const [novaCredits, setNovaCredits] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1082,6 +1082,7 @@ export default function App() {
     leaderboardOpen ||
     journalOpen ||
     nameStarOpen ||
+    monetizeOpen ||
     dailyChallengeOpen ||
     timelineOpen ||
     audioSettingsOpen ||
@@ -1091,6 +1092,7 @@ export default function App() {
     creditShopOpen ||
     dailyTasksOpen ||
     adminDashboardOpen ||
+    nftTeaserOpen ||
     arcadeOpen;
 
   const [topBarVisible, setTopBarVisible] = useState(true);
@@ -1335,28 +1337,11 @@ export default function App() {
     menuTimerRef.current = setTimeout(() => setMenuOpen(false), 5000);
   };
 
-  if (currentView === "landing") {
+  if (!showSolarSystem) {
     return (
       <ErrorBoundary>
-        <LandingScreen
-          onNavigate={(dest) => {
-            if (dest === "solar") {
-              setCurrentView("solar");
-              setShowIntro(true);
-            } else if (dest === "multiverse") {
-              setCurrentView("solar");
-              setMultiverseOpen(true);
-            } else if (dest === "arcade") {
-              setCurrentView("solar");
-              setArcadeOpen(true);
-            } else if (dest === "missions") {
-              setCurrentView("solar");
-              setMissionsOpen(true);
-            } else if (dest === "leaderboard") {
-              setCurrentView("solar");
-              setLeaderboardOpen(true);
-            }
-          }}
+        <InterstellarBlackHoleHero
+          onEnterSolarSystem={() => setShowSolarSystem(true)}
         />
       </ErrorBoundary>
     );
@@ -1541,38 +1526,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Home / Landing button */}
-      <motion.button
-        type="button"
-        data-ocid="landing.home.button"
-        onClick={() => setCurrentView("landing")}
-        whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.95 }}
-        style={{
-          position: "fixed",
-          bottom: 74,
-          left: 24,
-          zIndex: 9999,
-          background: "rgba(20,30,50,0.92)",
-          border: "1px solid rgba(246,195,91,0.3)",
-          borderRadius: 8,
-          color: "rgba(246,195,91,0.7)",
-          cursor: "pointer",
-          padding: "5px 10px",
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: "0.1em",
-          textTransform: "uppercase",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-        }}
-      >
-        ⌂ Home
-      </motion.button>
-
       {/* Menu toggle button */}
       <motion.button
         type="button"
@@ -1635,11 +1588,10 @@ export default function App() {
             onMouseMove={handleMenuPanelActivity}
             style={{
               position: "fixed",
-              bottom: isMobile ? 78 : 78,
-              left: isMobile ? 0 : 12,
-              right: isMobile ? 0 : "auto",
-              width: isMobile ? "100%" : 240,
-              maxHeight: isMobile ? "60vh" : "calc(100vh - 120px)",
+              bottom: 78,
+              left: 12,
+              width: 240,
+              maxHeight: "calc(100vh - 120px)",
               overflowY: "auto",
               background: "rgba(11,16,23,0.88)",
               border: "1px solid rgba(255,255,255,0.12)",
@@ -1984,6 +1936,16 @@ export default function App() {
             >
               🔊 Audio Settings
             </MenuBtn>
+            <MenuBtn
+              ocid="monetize.open_modal_button"
+              onClick={() => {
+                setMonetizeOpen(true);
+                setMenuOpen(false);
+              }}
+            >
+              💰 Support & Revenue
+            </MenuBtn>
+
             {/* Nova Credits Shop */}
             <MenuBtn
               ocid="nova_credits.open_modal_button"
@@ -2007,6 +1969,20 @@ export default function App() {
               }}
             >
               ✅ Daily Tasks
+            </MenuBtn>
+
+            {/* NFT Collection */}
+            <MenuBtn
+              ocid="nft.open_modal_button"
+              onClick={() => {
+                setNftTeaserOpen(true);
+                setMenuOpen(false);
+              }}
+              color="#a78bfa"
+              border="1px solid rgba(167,139,250,0.2)"
+              bg="rgba(167,139,250,0.06)"
+            >
+              🌌 NFT Collection
             </MenuBtn>
 
             {/* Admin Dashboard (admin only) */}
@@ -2154,6 +2130,7 @@ export default function App() {
         onOpenChange={setNameStarOpen}
         onStarNamed={() => updateAchievement({ namedAStar: true })}
       />
+      <MonetizationModal open={monetizeOpen} onOpenChange={setMonetizeOpen} />
       <DailyChallenge
         open={dailyChallengeOpen}
         onOpenChange={setDailyChallengeOpen}
@@ -2277,6 +2254,10 @@ export default function App() {
       <AdminDashboard
         isOpen={adminDashboardOpen}
         onClose={() => setAdminDashboardOpen(false)}
+      />
+      <NFTTeaser
+        isOpen={nftTeaserOpen}
+        onClose={() => setNftTeaserOpen(false)}
       />
       <GameArcade
         open={arcadeOpen}

@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type * as THREE from "three";
 import { audioManager } from "../utils/AudioManager";
+import { BackButton } from "./BackButton";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 export interface MultiverseViewProps {
@@ -885,26 +886,28 @@ export function MultiverseView({ onClose }: MultiverseViewProps) {
   const visitedCount = visited.length;
 
   return (
-    <div
-      data-ocid="multiverse.panel"
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100vw",
-        height: "100vh",
-        zIndex: 9999,
-        background: "#030610",
-        overflow: "hidden",
-        fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
-      }}
-    >
-      {/* Animated starfield background */}
+    <>
+      <BackButton onClick={onClose} />
       <div
+        data-ocid="multiverse.panel"
         style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: `
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          zIndex: 9999,
+          background: "#030610",
+          overflow: "hidden",
+          fontFamily: "'Plus Jakarta Sans', Inter, sans-serif",
+        }}
+      >
+        {/* Animated starfield background */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: `
           radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6) 0%, transparent 100%),
           radial-gradient(1px 1px at 25% 60%, rgba(255,255,255,0.4) 0%, transparent 100%),
           radial-gradient(2px 2px at 40% 30%, rgba(255,255,255,0.3) 0%, transparent 100%),
@@ -916,409 +919,412 @@ export function MultiverseView({ onClose }: MultiverseViewProps) {
           radial-gradient(1px 1px at 60% 50%, rgba(168,85,247,0.3) 0%, transparent 100%),
           radial-gradient(1px 1px at 35% 90%, rgba(246,195,91,0.3) 0%, transparent 100%)
         `,
-          backgroundSize: "300px 300px",
-          animation: "starfieldBg 80s linear infinite",
-          pointerEvents: "none",
-        }}
-      />
+            backgroundSize: "300px 300px",
+            animation: "starfieldBg 80s linear infinite",
+            pointerEvents: "none",
+          }}
+        />
 
-      {/* Universe 3D view */}
-      <AnimatePresence>
-        {activeUniverse && (
-          <motion.div
-            key="universe-view"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            style={{ position: "absolute", inset: 0 }}
-          >
-            <UniverseScene universe={activeUniverse} />
-
-            {/* Top bar */}
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                padding: "20px 28px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                background:
-                  "linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)",
-              }}
+        {/* Universe 3D view */}
+        <AnimatePresence>
+          {activeUniverse && (
+            <motion.div
+              key="universe-view"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.6 }}
+              style={{ position: "absolute", inset: 0 }}
             >
-              <button
-                type="button"
-                data-ocid="multiverse.back_button"
-                onClick={() => {
-                  setActiveUniverse(null);
-                  audioManager.startSolarSystemAmbient();
-                }}
+              <UniverseScene universe={activeUniverse} />
+
+              {/* Top bar */}
+              <div
                 style={{
-                  background: "rgba(10,6,30,0.7)",
-                  backdropFilter: "blur(12px)",
-                  border: "1px solid rgba(246,195,91,0.3)",
-                  borderRadius: 10,
-                  color: "#F6C35B",
-                  cursor: "pointer",
-                  padding: "8px 18px",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  letterSpacing: "0.05em",
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  padding: "20px 28px",
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
+                  justifyContent: "space-between",
+                  background:
+                    "linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)",
                 }}
               >
-                ← Back to Selection
-              </button>
-
-              <div style={{ textAlign: "center" }}>
-                <div
-                  style={{
-                    color: activeUniverse.color,
-                    fontSize: 22,
-                    fontWeight: 800,
-                    letterSpacing: "0.05em",
-                    textShadow: `0 0 20px ${activeUniverse.glowColor}`,
+                <button
+                  type="button"
+                  data-ocid="multiverse.back_button"
+                  onClick={() => {
+                    setActiveUniverse(null);
+                    audioManager.startSolarSystemAmbient();
                   }}
-                >
-                  {activeUniverse.name}
-                </div>
-                <div
                   style={{
-                    color: "rgba(200,212,224,0.7)",
-                    fontSize: 12,
-                    marginTop: 4,
-                  }}
-                >
-                  {activeUniverse.longDesc}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                data-ocid="multiverse.close_button"
-                onClick={() => {
-                  audioManager.startSolarSystemAmbient();
-                  onClose();
-                }}
-                style={{
-                  background: "rgba(10,6,30,0.7)",
-                  backdropFilter: "blur(12px)",
-                  border: "1px solid rgba(246,195,91,0.3)",
-                  borderRadius: 10,
-                  color: "#F6C35B",
-                  cursor: "pointer",
-                  padding: "8px 18px",
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                ✕ Exit
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Selection screen */}
-      <AnimatePresence>
-        {!activeUniverse && (
-          <motion.div
-            key="selection"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-            style={{
-              position: "absolute",
-              inset: 0,
-              overflowY: "auto",
-              padding: "32px 24px 80px",
-            }}
-          >
-            {/* Header */}
-            <div style={{ textAlign: "center", marginBottom: 40 }}>
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-              >
-                <div style={{ fontSize: 48, marginBottom: 8 }}>∞</div>
-                <h1
-                  style={{
+                    background: "rgba(10,6,30,0.7)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(246,195,91,0.3)",
+                    borderRadius: 10,
                     color: "#F6C35B",
-                    fontSize: 34,
-                    fontWeight: 800,
-                    margin: 0,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    textShadow: "0 0 30px rgba(246,195,91,0.5)",
+                    cursor: "pointer",
+                    padding: "8px 18px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    letterSpacing: "0.05em",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  Multiverse Explorer
-                </h1>
-                <p
-                  style={{
-                    color: "rgba(168,85,247,0.9)",
-                    fontSize: 15,
-                    marginTop: 10,
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  {visitedCount} / 6 universes visited — travel to unlock more
-                </p>
-              </motion.div>
-            </div>
+                  ← Back to Selection
+                </button>
 
-            {/* Portal grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                gap: 20,
-                maxWidth: 1000,
-                margin: "0 auto 40px",
-              }}
-            >
-              {UNIVERSES.map((universe, i) => {
-                const isLocked = visitedCount < universe.requiredVisited;
-                const isHovered = hoveredId === universe.id;
-                return (
-                  <motion.div
-                    key={universe.id}
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + i * 0.08 }}
-                    data-ocid={`multiverse.portal.${i + 1}`}
-                    onMouseEnter={() => setHoveredId(universe.id)}
-                    onMouseLeave={() => setHoveredId(null)}
-                    onClick={() => {
-                      if (isLocked) {
-                        toast(
-                          `🔒 Visit ${universe.requiredVisited} universe(s) to unlock ${universe.name}`,
-                          { duration: 2500 },
-                        );
-                      } else {
-                        travelTo(universe);
-                      }
-                    }}
+                <div style={{ textAlign: "center" }}>
+                  <div
                     style={{
-                      background:
-                        isHovered && !isLocked
-                          ? `linear-gradient(135deg, rgba(10,6,30,0.95) 0%, ${universe.bgColor}cc 100%)`
-                          : "rgba(10,6,30,0.8)",
-                      border: `1px solid ${isHovered && !isLocked ? universe.color : "rgba(168,85,247,0.2)"}`,
-                      borderRadius: 16,
-                      overflow: "hidden",
-                      cursor: isLocked ? "not-allowed" : "pointer",
-                      backdropFilter: "blur(16px)",
-                      transition: "all 0.3s ease",
-                      transform:
-                        isHovered && !isLocked ? "translateY(-4px)" : "none",
-                      boxShadow:
-                        isHovered && !isLocked
-                          ? `0 8px 40px ${universe.glowColor}, 0 0 0 1px ${universe.color}44`
-                          : "0 4px 16px rgba(0,0,0,0.4)",
-                      filter: isLocked
-                        ? "brightness(0.55) saturate(0.4)"
-                        : "none",
-                      position: "relative",
+                      color: activeUniverse.color,
+                      fontSize: 22,
+                      fontWeight: 800,
+                      letterSpacing: "0.05em",
+                      textShadow: `0 0 20px ${activeUniverse.glowColor}`,
                     }}
                   >
-                    {/* Preview */}
-                    <PortalPreview universe={universe} />
+                    {activeUniverse.name}
+                  </div>
+                  <div
+                    style={{
+                      color: "rgba(200,212,224,0.7)",
+                      fontSize: 12,
+                      marginTop: 4,
+                    }}
+                  >
+                    {activeUniverse.longDesc}
+                  </div>
+                </div>
 
-                    {/* Lock overlay */}
-                    {isLocked && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 120,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          background: "rgba(0,0,0,0.6)",
-                          backdropFilter: "blur(2px)",
-                          flexDirection: "column",
-                          gap: 6,
-                        }}
-                      >
-                        <span style={{ fontSize: 28 }}>🔒</span>
-                        <span
-                          style={{
-                            color: "rgba(200,212,224,0.7)",
-                            fontSize: 10,
-                            letterSpacing: "0.05em",
-                          }}
-                        >
-                          Visit {universe.requiredVisited} universes to unlock
-                        </span>
-                      </div>
-                    )}
+                <button
+                  type="button"
+                  data-ocid="multiverse.close_button"
+                  onClick={() => {
+                    audioManager.startSolarSystemAmbient();
+                    onClose();
+                  }}
+                  style={{
+                    background: "rgba(10,6,30,0.7)",
+                    backdropFilter: "blur(12px)",
+                    border: "1px solid rgba(246,195,91,0.3)",
+                    borderRadius: 10,
+                    color: "#F6C35B",
+                    cursor: "pointer",
+                    padding: "8px 18px",
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  ✕ Exit
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                    {/* Info */}
-                    <div style={{ padding: "14px 16px 16px" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          marginBottom: 6,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: "50%",
-                            background: universe.color,
-                            boxShadow: `0 0 8px ${universe.color}`,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span
-                          style={{
-                            color: isLocked
-                              ? "rgba(200,212,224,0.5)"
-                              : "#E9EEF5",
-                            fontSize: 14,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {universe.name}
-                        </span>
-                        {visited.includes(universe.id) && (
-                          <span
-                            style={{
-                              marginLeft: "auto",
-                              color: "#4CAF50",
-                              fontSize: 11,
-                              background: "rgba(76,175,80,0.15)",
-                              border: "1px solid rgba(76,175,80,0.3)",
-                              borderRadius: 6,
-                              padding: "2px 8px",
-                            }}
-                          >
-                            ✓ Visited
-                          </span>
-                        )}
-                      </div>
-                      <p
-                        style={{
-                          color: "rgba(200,212,224,0.65)",
-                          fontSize: 12,
-                          margin: 0,
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        {universe.description}
-                      </p>
-                      {!isLocked && (
-                        <div
-                          style={{
-                            marginTop: 12,
-                            padding: "6px 14px",
-                            background: `${universe.color}22`,
-                            border: `1px solid ${universe.color}44`,
-                            borderRadius: 8,
-                            color: universe.color,
-                            fontSize: 11,
-                            fontWeight: 700,
-                            textAlign: "center",
-                            letterSpacing: "0.08em",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          → Enter Universe
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Bottom actions */}
-            <div
+        {/* Selection screen */}
+        <AnimatePresence>
+          {!activeUniverse && (
+            <motion.div
+              key="selection"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5 }}
               style={{
-                display: "flex",
-                justifyContent: "center",
-                gap: 16,
-                flexWrap: "wrap",
+                position: "absolute",
+                inset: 0,
+                overflowY: "auto",
+                padding: "32px 24px 80px",
               }}
             >
-              <button
-                type="button"
-                data-ocid="multiverse.compare.open_modal_button"
-                onClick={() => setShowCompare(true)}
+              {/* Header */}
+              <div style={{ textAlign: "center", marginBottom: 40 }}>
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <div style={{ fontSize: 48, marginBottom: 8 }}>∞</div>
+                  <h1
+                    style={{
+                      color: "#F6C35B",
+                      fontSize: 34,
+                      fontWeight: 800,
+                      margin: 0,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      textShadow: "0 0 30px rgba(246,195,91,0.5)",
+                    }}
+                  >
+                    Multiverse Explorer
+                  </h1>
+                  <p
+                    style={{
+                      color: "rgba(168,85,247,0.9)",
+                      fontSize: 15,
+                      marginTop: 10,
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    {visitedCount} / 6 universes visited — travel to unlock more
+                  </p>
+                </motion.div>
+              </div>
+
+              {/* Portal grid */}
+              <div
                 style={{
-                  background: "rgba(168,85,247,0.15)",
-                  border: "1px solid rgba(168,85,247,0.4)",
-                  borderRadius: 12,
-                  color: "#A855F7",
-                  cursor: "pointer",
-                  padding: "12px 28px",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  backdropFilter: "blur(8px)",
-                  transition: "all 0.2s",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                  gap: 20,
+                  maxWidth: 1000,
+                  margin: "0 auto 40px",
                 }}
               >
-                📊 Compare Universes
-              </button>
-              <button
-                type="button"
-                data-ocid="multiverse.exit_button"
-                onClick={onClose}
+                {UNIVERSES.map((universe, i) => {
+                  const isLocked = visitedCount < universe.requiredVisited;
+                  const isHovered = hoveredId === universe.id;
+                  return (
+                    <motion.div
+                      key={universe.id}
+                      initial={{ opacity: 0, y: 30 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 + i * 0.08 }}
+                      data-ocid={`multiverse.portal.${i + 1}`}
+                      onMouseEnter={() => setHoveredId(universe.id)}
+                      onMouseLeave={() => setHoveredId(null)}
+                      onClick={() => {
+                        if (isLocked) {
+                          toast(
+                            `🔒 Visit ${universe.requiredVisited} universe(s) to unlock ${universe.name}`,
+                            { duration: 2500 },
+                          );
+                        } else {
+                          travelTo(universe);
+                        }
+                      }}
+                      style={{
+                        background:
+                          isHovered && !isLocked
+                            ? `linear-gradient(135deg, rgba(10,6,30,0.95) 0%, ${universe.bgColor}cc 100%)`
+                            : "rgba(10,6,30,0.8)",
+                        border: `1px solid ${isHovered && !isLocked ? universe.color : "rgba(168,85,247,0.2)"}`,
+                        borderRadius: 16,
+                        overflow: "hidden",
+                        cursor: isLocked ? "not-allowed" : "pointer",
+                        backdropFilter: "blur(16px)",
+                        transition: "all 0.3s ease",
+                        transform:
+                          isHovered && !isLocked ? "translateY(-4px)" : "none",
+                        boxShadow:
+                          isHovered && !isLocked
+                            ? `0 8px 40px ${universe.glowColor}, 0 0 0 1px ${universe.color}44`
+                            : "0 4px 16px rgba(0,0,0,0.4)",
+                        filter: isLocked
+                          ? "brightness(0.55) saturate(0.4)"
+                          : "none",
+                        position: "relative",
+                      }}
+                    >
+                      {/* Preview */}
+                      <PortalPreview universe={universe} />
+
+                      {/* Lock overlay */}
+                      {isLocked && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 120,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "rgba(0,0,0,0.6)",
+                            backdropFilter: "blur(2px)",
+                            flexDirection: "column",
+                            gap: 6,
+                          }}
+                        >
+                          <span style={{ fontSize: 28 }}>🔒</span>
+                          <span
+                            style={{
+                              color: "rgba(200,212,224,0.7)",
+                              fontSize: 10,
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            Visit {universe.requiredVisited} universes to unlock
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Info */}
+                      <div style={{ padding: "14px 16px 16px" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              background: universe.color,
+                              boxShadow: `0 0 8px ${universe.color}`,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <span
+                            style={{
+                              color: isLocked
+                                ? "rgba(200,212,224,0.5)"
+                                : "#E9EEF5",
+                              fontSize: 14,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {universe.name}
+                          </span>
+                          {visited.includes(universe.id) && (
+                            <span
+                              style={{
+                                marginLeft: "auto",
+                                color: "#4CAF50",
+                                fontSize: 11,
+                                background: "rgba(76,175,80,0.15)",
+                                border: "1px solid rgba(76,175,80,0.3)",
+                                borderRadius: 6,
+                                padding: "2px 8px",
+                              }}
+                            >
+                              ✓ Visited
+                            </span>
+                          )}
+                        </div>
+                        <p
+                          style={{
+                            color: "rgba(200,212,224,0.65)",
+                            fontSize: 12,
+                            margin: 0,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {universe.description}
+                        </p>
+                        {!isLocked && (
+                          <div
+                            style={{
+                              marginTop: 12,
+                              padding: "6px 14px",
+                              background: `${universe.color}22`,
+                              border: `1px solid ${universe.color}44`,
+                              borderRadius: 8,
+                              color: universe.color,
+                              fontSize: 11,
+                              fontWeight: 700,
+                              textAlign: "center",
+                              letterSpacing: "0.08em",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            → Enter Universe
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              {/* Bottom actions */}
+              <div
                 style={{
-                  background: "rgba(246,195,91,0.1)",
-                  border: "1px solid rgba(246,195,91,0.3)",
-                  borderRadius: 12,
-                  color: "#F6C35B",
-                  cursor: "pointer",
-                  padding: "12px 28px",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  backdropFilter: "blur(8px)",
-                  transition: "all 0.2s",
+                  display: "flex",
+                  justifyContent: "center",
+                  gap: 16,
+                  flexWrap: "wrap",
                 }}
               >
-                ← Back to Galaxy
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <button
+                  type="button"
+                  data-ocid="multiverse.compare.open_modal_button"
+                  onClick={() => setShowCompare(true)}
+                  style={{
+                    background: "rgba(168,85,247,0.15)",
+                    border: "1px solid rgba(168,85,247,0.4)",
+                    borderRadius: 12,
+                    color: "#A855F7",
+                    cursor: "pointer",
+                    padding: "12px 28px",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    backdropFilter: "blur(8px)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  📊 Compare Universes
+                </button>
+                <button
+                  type="button"
+                  data-ocid="multiverse.exit_button"
+                  onClick={onClose}
+                  style={{
+                    background: "rgba(246,195,91,0.1)",
+                    border: "1px solid rgba(246,195,91,0.3)",
+                    borderRadius: 12,
+                    color: "#F6C35B",
+                    cursor: "pointer",
+                    padding: "12px 28px",
+                    fontSize: 14,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    backdropFilter: "blur(8px)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  ← Back to Galaxy
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Wormhole travel animation */}
-      <AnimatePresence>
-        {traveling && (
-          <motion.div
-            key="wormhole"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <WormholeTunnel color={travelColor} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+        {/* Wormhole travel animation */}
+        <AnimatePresence>
+          {traveling && (
+            <motion.div
+              key="wormhole"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <WormholeTunnel color={travelColor} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* Compare modal */}
-      <AnimatePresence>
-        {showCompare && <CompareModal onClose={() => setShowCompare(false)} />}
-      </AnimatePresence>
-    </div>
+        {/* Compare modal */}
+        <AnimatePresence>
+          {showCompare && (
+            <CompareModal onClose={() => setShowCompare(false)} />
+          )}
+        </AnimatePresence>
+      </div>
+    </>
   );
 }

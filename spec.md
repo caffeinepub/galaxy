@@ -1,26 +1,30 @@
 # Multi-verse of Madness
 
 ## Current State
-The app loads directly into the solar system simulation (3D Three.js canvas with React). App.tsx renders the full solar system immediately on load. No intro sequence exists. The `InterstellarBlackHoleHero` component exists but is unused (was removed as first-page hero in v21).
+The app opens to a LandingScreen (`currentView === 'landing'`). Navigation from the landing screen sets `currentView` to `'solar'` and opens feature modals (MultiverseView, GameArcade, SpaceMissions, Leaderboard) as overlays over the solar system canvas. There is a fixed '⌂ Home' button that returns to landing, but NO back button exists on any modal or sub-view. The UI is not responsive — the 240px left menu panel and fixed-position HUD elements have no mobile breakpoints.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `WarpIntroSequence` component: a 6-second cinematic gravitational lens warp-in that plays before the solar system becomes interactive
-  - Phase 1 (0-2s): Pure black with subtle star particles fading in, deep sub-bass rumble building via Web Audio API
-  - Phase 2 (2-4s): Gravitational lens distortion effect using WebGL fragment shaders -- space tears open with chromatic aberration, light bending rings rippling outward, star streaking
-  - Phase 3 (4-6s): Bloom flash reveals the solar system behind the warp, camera pulls back from inside the wormhole
-  - Skippable by click/tap after 1 second
-  - Web Audio API synthesizes: sub-bass sine wave building in amplitude, sharp transient crack at warp tear, fade into silence (solar system ambient takes over)
-  - Uses CSS/canvas for the shader-like effects (chromatic aberration, lensing rings, star streaks) via requestAnimationFrame
-- State in App.tsx: `showIntro` (boolean, default true) -- when true renders `WarpIntroSequence`; on complete sets to false and shows solar system
+- A consistent back button (sci-fi HUD style, top-left corner) on every full-screen modal/overlay: MultiverseView, GameArcade, SpaceMissions, Leaderboard, AdminDashboard, CreditShop, DailyTaskPanel, DonationModal, and any other full-screen view
+- The back button should call its respective `onClose`/`onBack` prop to dismiss the overlay and return the user to the previous context
+- Mobile-responsive layout fixes: the 240px left side menu panel should collapse or reposition on screens < 768px, the HUD elements should not overlap on small screens, touch targets should be at least 44x44px
+- A media query or JS-based breakpoint check (`useIsMobile`) to adjust layout for phones
 
 ### Modify
-- `App.tsx`: Add `showIntro` state, conditionally render `WarpIntroSequence` overlay before solar system Canvas
+- All full-screen overlay components (MultiverseView, GameArcade, SpaceMissions, Leaderboard, AdminDashboard, CreditShop, DailyTaskPanel) to include a back/close button in a consistent top-left position
+- App.tsx side menu panel: add responsive width/positioning for mobile
+- Game components (AsteroidMiner, SpaceDefender, WormholeRacer, GravityEscape, PlanetTerraformer) to include a back button returning to the GameArcade lobby
+- LandingScreen: ensure nav cards and buttons are properly touch-sized and laid out on mobile
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Create `src/frontend/src/components/WarpIntroSequence.tsx` with full Canvas 2D gravitational lens animation, chromatic aberration effect, star field, and Web Audio synthesis
-2. Add `showIntro` state to `App.tsx`, render `WarpIntroSequence` as overlay that fades out and calls `onComplete` when done
+1. Create or use existing `useIsMobile` hook to detect mobile viewport (< 768px)
+2. Add a reusable `BackButton` component with sci-fi HUD styling (neon border, monospace font, chevron left icon)
+3. Add `BackButton` to the top-left of: MultiverseView, GameArcade, SpaceMissions, Leaderboard, AdminDashboard, CreditShop, DailyTaskPanel, DonationModal
+4. Add back button inside each mini-game (AsteroidMiner, SpaceDefender, WormholeRacer, GravityEscape, PlanetTerraformer) to return to GameArcade
+5. Fix App.tsx side menu to use responsive width and positioning on mobile (stack below or hide behind hamburger on small screens)
+6. Ensure all interactive elements have minimum 44px touch targets for mobile
+7. Fix any overflow/wrapping issues in HUD elements on narrow screens

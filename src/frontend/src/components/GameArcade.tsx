@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import React, { useState, useCallback } from "react";
 import { useActor } from "../hooks/useActor";
+import { BackButton } from "./BackButton";
 import AsteroidMiner from "./games/AsteroidMiner";
 import GravityEscape from "./games/GravityEscape";
 import PlanetTerraformer from "./games/PlanetTerraformer";
@@ -199,6 +200,7 @@ export default function GameArcade({
         }}
         data-ocid="arcade.modal"
       >
+        <BackButton onClick={() => onClose()} />
         {/* Header */}
         <div
           style={{

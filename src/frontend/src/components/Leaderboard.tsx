@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import type { GameLeaderboardEntry } from "../backend";
 import { useActor } from "../hooks/useActor";
+import { BackButton } from "./BackButton";
 
 const HUD_BG = "rgba(2,8,16,0.97)";
 const CYAN = "#00F5FF";
@@ -117,6 +118,7 @@ export function Leaderboard({ open, onOpenChange, isLoggedIn }: Props) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            <BackButton onClick={() => onOpenChange(false)} />
             <div style={GRID_BG} />
             <div style={SCANLINES} />
             <div style={{ position: "relative", zIndex: 2, padding: 28 }}>

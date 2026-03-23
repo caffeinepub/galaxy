@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "../hooks/useActor";
 import { audioManager } from "../utils/AudioManager";
+import { BackButton } from "./BackButton";
 
 // ─── Speech synthesis hook ────────────────────────────────────────────────────
 function useSpeech() {
@@ -1560,6 +1561,7 @@ export function SpaceMissions({
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            <BackButton onClick={() => onOpenChange(false)} />
             <div
               style={{
                 display: "flex",
